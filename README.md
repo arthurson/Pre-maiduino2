@@ -1,4 +1,4 @@
-![dmm_premaid_ai_ai____1670485927_e68ed99e_progressive](https://github.com/user-attachments/assets/33aa7c77-46b6-4e95-9f11-954e7b8103a8)
+
 it is a fork from Pre-maiduino.
 
 it builds with the following
