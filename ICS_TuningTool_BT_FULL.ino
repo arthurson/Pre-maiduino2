@@ -1,82 +1,48 @@
 /*
- * ICS_Sync_3Seconds_Final.ino
- * 所有伺服同步移動，速度30，約3秒完成開機動作
+ * ICS_25Axis_Robot_Official.ino
+ * 使用官方 ICS Library Ver.3 的完整版本
+ * 開機動作時間：2秒
+ * 呼吸燈速度：2（非常慢）
+ * 
+ * 修改：所有 homepoint 改為 7500，取消角度限制
  */
 
 #include <Arduino.h>
 #include <Wire.h>
 
 // ===== 手動宣告 Serial2 同 Serial3（STM32duino 必須）=====
-HardwareSerial Serial2(PA3, PA2);  // HV 伺服群
-HardwareSerial Serial3(PB11, PB10); // MV 伺服群
+// Serial2: PA3 (RX), PA2 (TX) - HV 伺服群
+HardwareSerial Serial2(PA3, PA2);
+// Serial3: PB11 (RX), PB10 (TX) - MV 伺服群
+HardwareSerial Serial3(PB11, PB10);
 
-// ===== ICS Library =====
-#include "IcsCommunication_STM32duino.h"
+// ===== 引入官方 ICS 函式庫 =====
+#include <IcsHardSerialClass.h>
+
+// ===== 定義 ICS_FALSE 常數（如果沒定義的話）=====
+#ifndef ICS_FALSE
+#define ICS_FALSE -1
+#endif
+
+// ===== 定義 EN 腳位（根據你的實際接線修改！）=====
+#define EN_HV_PIN   PA4   // 控制 HV 群收發的腳位 (連接 Serial2)
+#define EN_MV_PIN   PB2   // 控制 MV 群收發的腳位 (連接 Serial3)
+
+// ===== 建立兩個通訊物件 =====
+IcsHardSerialClass icsHV(&Serial2, EN_HV_PIN, 1250000, 50);
+IcsHardSerialClass icsMV(&Serial3, EN_MV_PIN, 1250000, 50);
 
 // ===== 步進角度定義 =====
 #define ANGLE_STEP_NORMAL 50
 #define ANGLE_STEP_FINE 10
 
-// ===== LED 呼吸燈（固定速度2）=====
+// ===== LED 相關定義 =====
 #define LED_RED_PIN   PA7
 #define LED_GREEN_PIN PB0
 #define LED_BLUE_PIN  PB1
 
-#define LED_PWM_MAX 255
-#define LED_PWM_STEP 5
-int breathBrightness = 0;
-int breathDirection = 1;
-unsigned long lastBreathUpdate = 0;
-#define BREATH_UPDATE_INTERVAL 20
-#define BREATH_SPEED 2
-
-void initLED() {
-  pinMode(LED_RED_PIN, OUTPUT);
-  pinMode(LED_GREEN_PIN, OUTPUT);
-  pinMode(LED_BLUE_PIN, OUTPUT);
-}
-
-void updateBreathing() {
-  unsigned long now = millis();
-  if (now - lastBreathUpdate >= BREATH_UPDATE_INTERVAL) {
-    lastBreathUpdate = now;
-    
-    int step = LED_PWM_STEP * BREATH_SPEED / 2;
-    if (step < 1) step = 1;
-    
-    breathBrightness += breathDirection * step;
-    
-    if (breathBrightness >= LED_PWM_MAX) {
-      breathBrightness = LED_PWM_MAX;
-      breathDirection = -1;
-    } else if (breathBrightness <= 0) {
-      breathBrightness = 0;
-      breathDirection = 1;
-    }
-    
-    analogWrite(LED_BLUE_PIN, breathBrightness);
-    analogWrite(LED_RED_PIN, 0);
-    analogWrite(LED_GREEN_PIN, 0);
-  }
-}
-
-void setLEDRed() {
-  analogWrite(LED_RED_PIN, LED_PWM_MAX);
-  analogWrite(LED_GREEN_PIN, 0);
-  analogWrite(LED_BLUE_PIN, 0);
-}
-
-void setLEDGreen() {
-  analogWrite(LED_RED_PIN, 0);
-  analogWrite(LED_GREEN_PIN, LED_PWM_MAX);
-  analogWrite(LED_BLUE_PIN, 0);
-}
-
-void setLEDBlue() {
-  analogWrite(LED_RED_PIN, 0);
-  analogWrite(LED_GREEN_PIN, 0);
-  analogWrite(LED_BLUE_PIN, LED_PWM_MAX);
-}
+// ===== 呼吸燈速度定義 =====
+#define BREATH_SPEED 2  // 速度 2（非常慢）
 
 // ===== MPU6050 相關定義 =====
 #define MPU6050_ADDR 0x68
@@ -91,51 +57,47 @@ struct MPU6050Data {
 
 MPU6050Data mpuData;
 
-// ===== 建立兩個通訊物件 =====
-IcsCommunication icsHV(Serial2);
-IcsCommunication icsMV(Serial3);
-
-// ===== 25軸伺服資訊 =====
+// ===== 25軸伺服資訊（所有 homepoint = 7500，無限制）=====
 struct ServoInfo {
   uint8_t servoID;
-  uint16_t homePosition;
+  uint16_t homePosition;      // 固定為 7500
   uint16_t currentTunePos;
-  HardwareSerial* serialPort;
+  IcsHardSerialClass* icsPort;
   const char* name;
-  uint16_t minAngle;
-  uint16_t maxAngle;
+  uint16_t minAngle;           // 固定為 3500（取消限制用）
+  uint16_t maxAngle;           // 固定為 11500（取消限制用）
   bool isHV;
 };
 
 ServoInfo servoList[] = {
   // 上半身 & 頭部 (MV, Serial3)
-  {1,  7500, 7500, &Serial3, "頭ピッチ", 3500, 11500, false},
-  {2,  7500, 7500, &Serial3, "頭ヨー", 3500, 11500, false},
-  {3,  7500, 7500, &Serial3, "頭萌", 3500, 11500, false},
-  {4,  9900, 9900, &Serial3, "肩ロールR", 3500, 11500, false},
-  {5,  5100, 5100, &Serial3, "肩ロールL", 3500, 11500, false},
-  {6,  7500, 7500, &Serial3, "上腕ヨーR", 3500, 11500, false},
-  {7,  7500, 7500, &Serial3, "上腕ヨーL", 3500, 11500, false},
-  {8,  7500, 7500, &Serial3, "肘ピッチR", 3500, 11500, false},
-  {9,  7500, 7500, &Serial3, "肘ピッチL", 3500, 11500, false},
-  {10, 5000, 5000, &Serial3, "手首ヨーR", 3500, 11500, false},
-  {11, 10000, 10000, &Serial3, "手首ヨーL", 3500, 11500, false},
+  {1,  7500, 7500, &icsMV, "頭ピッチ", 3500, 11500, false},
+  {2,  7500, 7500, &icsMV, "頭ヨー", 3500, 11500, false},
+  {3,  7500, 7500, &icsMV, "頭萌", 3500, 11500, false},
+  {4,  7500, 7500, &icsMV, "肩ロールR", 3500, 11500, false},
+  {5,  7500, 7500, &icsMV, "肩ロールL", 3500, 11500, false},
+  {6,  7500, 7500, &icsMV, "上腕ヨーR", 3500, 11500, false},
+  {7,  7500, 7500, &icsMV, "上腕ヨーL", 3500, 11500, false},
+  {8,  7500, 7500, &icsMV, "肘ピッチR", 3500, 11500, false},
+  {9,  7500, 7500, &icsMV, "肘ピッチL", 3500, 11500, false},
+  {10, 7500, 7500, &icsMV, "手首ヨーR", 3500, 11500, false},
+  {11, 7500, 7500, &icsMV, "手首ヨーL", 3500, 11500, false},
 
   // 下半身 & 身體 (HV, Serial2)
-  {1,  10200, 10200, &Serial2, "肩ピッチR", 3500, 11500, true},
-  {2,  4750, 4750, &Serial2, "肩ピッチL", 3500, 11500, true},
-  {3,  7769, 7769, &Serial2, "ヒップヨーR", 3500, 11500, true},
-  {4,  7500, 7500, &Serial2, "ヒップヨーL", 3500, 11500, true},
-  {5,  7500, 7500, &Serial2, "ヒップロールR", 3500, 11500, true},
-  {6,  7500, 7500, &Serial2, "ヒップロールL", 3500, 11500, true},
-  {7,  7500, 7500, &Serial2, "腿ピッチR", 3500, 11500, true},
-  {8,  7500, 7500, &Serial2, "腿ピッチL", 3500, 11500, true},
-  {9,  7500, 7500, &Serial2, "膝ピッチR", 3500, 11500, true},
-  {10, 7500, 7500, &Serial2, "膝ピッチL", 3500, 11500, true},
-  {11, 7500, 7500, &Serial2, "足首ピッチR", 3500, 11500, true},
-  {12, 7500, 7500, &Serial2, "足首ピッチL", 3500, 11500, true},
-  {13, 7724, 7724, &Serial2, "足首ロールR", 3500, 11500, true},
-  {14, 7500, 7500, &Serial2, "足首ロールL", 3500, 11500, true}
+  {1,  7500, 7500, &icsHV, "肩ピッチR", 3500, 11500, true},
+  {2,  7500, 7500, &icsHV, "肩ピッチL", 3500, 11500, true},
+  {3,  7500, 7500, &icsHV, "ヒップヨーR", 3500, 11500, true},
+  {4,  7500, 7500, &icsHV, "ヒップヨーL", 3500, 11500, true},
+  {5,  7500, 7500, &icsHV, "ヒップロールR", 3500, 11500, true},
+  {6,  7500, 7500, &icsHV, "ヒップロールL", 3500, 11500, true},
+  {7,  7500, 7500, &icsHV, "腿ピッチR", 3500, 11500, true},
+  {8,  7500, 7500, &icsHV, "腿ピッチL", 3500, 11500, true},
+  {9,  7500, 7500, &icsHV, "膝ピッチR", 3500, 11500, true},
+  {10, 7500, 7500, &icsHV, "膝ピッチL", 3500, 11500, true},
+  {11, 7500, 7500, &icsHV, "足首ピッチR", 3500, 11500, true},
+  {12, 7500, 7500, &icsHV, "足首ピッチL", 3500, 11500, true},
+  {13, 7500, 7500, &icsHV, "足首ロールR", 3500, 11500, true},
+  {14, 7500, 7500, &icsHV, "足首ロールL", 3500, 11500, true}
 };
 
 #define TOTAL_SERVO_NUM (sizeof(servoList) / sizeof(servoList[0]))
@@ -145,32 +107,77 @@ bool tuningMode = false;
 int currentServoIndex = 0;
 String inputBuffer = "";
 
-// ===== 速度控制 =====
-int currentSpeed = 50;  // 預設速度 50
-
 // ===== 函式原型 =====
 void initLED();
-void updateBreathing();
 void setLEDRed();
 void setLEDGreen();
 void setLEDBlue();
-bool initHV();
-bool initMV();
+void setLEDOff();
+void breathLED(int pin, int speed);
 void initMPU6050();
-void calibrateGyro(int samples);
+void calibrateGyro(int samples = 500);
 bool readMPU6050();
-void moveAllServosToHomeSync();
+void initServos();
+void moveAllServosToHome();
 void processCommand(String cmd);
 void showHelp();
 void showCurrentServoInfo();
 void updateServoPosition(int delta);
 void nextServo();
 void prevServo();
+
+// ===== 動作 library =====
 void actionStand();
 void actionWave();
 void actionBow();
 void actionDance();
 void actionTest();
+
+// ===== LED 控制 =====
+void initLED() {
+  pinMode(LED_RED_PIN, OUTPUT);
+  pinMode(LED_GREEN_PIN, OUTPUT);
+  pinMode(LED_BLUE_PIN, OUTPUT);
+  setLEDOff();
+}
+
+void setLEDRed() {
+  digitalWrite(LED_RED_PIN, HIGH);
+  digitalWrite(LED_GREEN_PIN, LOW);
+  digitalWrite(LED_BLUE_PIN, LOW);
+}
+
+void setLEDGreen() {
+  digitalWrite(LED_RED_PIN, LOW);
+  digitalWrite(LED_GREEN_PIN, HIGH);
+  digitalWrite(LED_BLUE_PIN, LOW);
+}
+
+void setLEDBlue() {
+  digitalWrite(LED_RED_PIN, LOW);
+  digitalWrite(LED_GREEN_PIN, LOW);
+  digitalWrite(LED_BLUE_PIN, HIGH);
+}
+
+void setLEDOff() {
+  digitalWrite(LED_RED_PIN, LOW);
+  digitalWrite(LED_GREEN_PIN, LOW);
+  digitalWrite(LED_BLUE_PIN, LOW);
+}
+
+// ===== 呼吸燈效果 =====
+void breathLED(int pin, int speed) {
+  // 漸亮
+  for (int brightness = 0; brightness <= 255; brightness++) {
+    analogWrite(pin, brightness);
+    delay(speed);
+  }
+  // 漸暗
+  for (int brightness = 255; brightness >= 0; brightness--) {
+    analogWrite(pin, brightness);
+    delay(speed);
+  }
+}
 
 // ===== MPU6050 函式 =====
 void writeMPU6050Reg(uint8_t reg, uint8_t value) {
@@ -280,72 +287,109 @@ bool readMPU6050() {
 }
 
 // ===== 初始化伺服 =====
-bool initHV() {
-  pinMode(PA2, OUTPUT);
-  digitalWrite(PA2, HIGH);
-  delay(505);
-  digitalWrite(PA2, LOW);
-  return icsHV.begin(1250000, 50, false);
-}
-
-bool initMV() {
-  pinMode(PB10, OUTPUT);
-  digitalWrite(PB10, HIGH);
-  delay(505);
-  digitalWrite(PB10, LOW);
-  return icsMV.begin(1250000, 50, false);
-}
-
-// ===== 移動到 Home Point (速度30，約3秒完成) =====
-void moveAllServosToHomeSync() {
-  Serial1.println(F("\n移動到 Home Point (速度30)..."));
-
-  int moveSpeed = 30;
+void initServos() {
+  // 設定 EN 腳位為輸出
+  pinMode(EN_HV_PIN, OUTPUT);
+  pinMode(EN_MV_PIN, OUTPUT);
   
+  // 初始化 HV 群 (Serial2)
+  Serial1.print(F("初始化 HV 伺服..."));
+  digitalWrite(EN_HV_PIN, HIGH);
+  delay(550);
+  digitalWrite(EN_HV_PIN, LOW);
+  
+  if (icsHV.begin()) {
+    Serial1.println(F("完成"));
+  } else {
+    Serial1.println(F("失敗！"));
+  }
+  
+  // 初始化 MV 群 (Serial3)
+  Serial1.print(F("初始化 MV 伺服..."));
+  digitalWrite(EN_MV_PIN, HIGH);
+  delay(550);
+  digitalWrite(EN_MV_PIN, LOW);
+  
+  if (icsMV.begin()) {
+    Serial1.println(F("完成"));
+  } else {
+    Serial1.println(F("失敗！"));
+  }
+}
+
+// ===== 移動到 Home Point（2秒完成）=====
+void moveAllServosToHome() {
+  Serial1.println(F("\n移動到 Home Point (7500, 2秒)..."));
+  
+  // 設定所有伺服速度為較慢
+  int slowSpeed = 15;
+  
+  // 先設定所有伺服的速度
+  for (int i = 0; i < TOTAL_SERVO_NUM; i++) {
+    ServoInfo *s = &servoList[i];
+    s->icsPort->setSpd(s->servoID, slowSpeed);
+    delay(2);
+  }
+  
+  // 計算每個伺服之間的延遲，讓整體動作大約 2 秒完成
+  int delayPerServo = 2000 / TOTAL_SERVO_NUM;
+  
+  unsigned long startTime = millis();
+  
+  // 依序移動到 Home 位置 (7500)
   for (int i = 0; i < TOTAL_SERVO_NUM; i++) {
     ServoInfo *s = &servoList[i];
     
-    if (s->isHV) {
-      icsHV.set_speed(s->servoID, moveSpeed);
-    } else {
-      icsMV.set_speed(s->servoID, moveSpeed);
+    int result = s->icsPort->setPos(s->servoID, 7500);
+    
+    if (result == ICS_FALSE) {
+      Serial1.print(F("⚠️ ID "));
+      Serial1.print(s->servoID);
+      Serial1.println(F(" 通訊失敗"));
     }
     
-    if (s->isHV) {
-      icsHV.set_position(s->servoID, s->homePosition);
-    } else {
-      icsMV.set_position(s->servoID, s->homePosition);
+    if (i < TOTAL_SERVO_NUM - 1) {
+      delay(delayPerServo);
     }
     
-    s->currentTunePos = s->homePosition;
+    if ((i + 1) % 5 == 0) {
+      Serial1.print(F("🔄 進度: "));
+      Serial1.print(i + 1);
+      Serial1.print(F("/"));
+      Serial1.println(TOTAL_SERVO_NUM);
+    }
   }
-
-  delay(3000);
   
-  Serial1.println(F("✓ 移動完成 (3秒)"));
+  unsigned long elapsed = millis() - startTime;
+  Serial1.print(F("✓ 移動完成，耗時: "));
+  Serial1.print(elapsed);
+  Serial1.println(F("ms"));
 }
 
-// ===== 動作 library =====
+// ===== 動作 library（所有 homepoint 改為 7500）=====
 void actionStand() {
-  Serial1.println(F("動作：企直"));
-  moveAllServosToHomeSync();
+  Serial1.println(F("動作：企直 (7500)"));
+  moveAllServosToHome();
 }
 
 void actionWave() {
   Serial1.println(F("動作：舉手打招呼"));
   
-  icsMV.set_speed(4, currentSpeed);
-  icsMV.set_speed(10, currentSpeed);
+  int speed = 25;
   
-  icsMV.set_position(4, 10300);
-  delay(300);
-  icsMV.set_position(10, 7000);
-  delay(300);
+  icsMV.setSpd(4, speed);
+  icsMV.setSpd(5, speed);
+  icsMV.setSpd(10, speed);
+  icsMV.setSpd(11, speed);
+  
+  icsMV.setPos(4, 10300);
+  icsMV.setPos(10, 7000);
+  delay(800);
   
   for (int i = 0; i < 3; i++) {
-    icsMV.set_position(4, 10000);
+    icsMV.setPos(4, 10000);
     delay(200);
-    icsMV.set_position(4, 10300);
+    icsMV.setPos(4, 10300);
     delay(200);
   }
   
@@ -355,44 +399,45 @@ void actionWave() {
 void actionBow() {
   Serial1.println(F("動作：鞠躬"));
   
-  icsMV.set_speed(1, currentSpeed);
-  icsHV.set_speed(1, currentSpeed);
-  icsHV.set_speed(2, currentSpeed);
+  int speed = 20;
   
-  icsMV.set_position(1, 7800);
-  delay(300);
-  icsHV.set_position(1, 9000);
-  delay(300);
-  icsHV.set_position(2, 6000);
-  delay(300);
+  icsMV.setSpd(1, speed);
+  icsHV.setSpd(1, speed);
+  icsHV.setSpd(2, speed);
+  
+  icsMV.setPos(1, 7800);
+  icsHV.setPos(1, 9000);
+  icsHV.setPos(2, 6000);
   
   delay(1000);
+  
   actionStand();
 }
 
 void actionDance() {
   Serial1.println(F("動作：簡單跳舞"));
   
+  int speed = 30;
+  
   for (int repeat = 0; repeat < 2; repeat++) {
-    icsMV.set_speed(4, currentSpeed);
-    icsMV.set_speed(5, currentSpeed);
-    icsMV.set_speed(2, currentSpeed);
-    
-    icsMV.set_position(4, 10300);
+    icsMV.setSpd(4, speed);
+    icsMV.setPos(4, 10300);
     delay(300);
     
-    icsMV.set_position(5, 6500);
+    icsMV.setSpd(5, speed);
+    icsMV.setPos(5, 6500);
     delay(300);
     
-    icsMV.set_position(4, 9900);
-    icsMV.set_position(5, 5100);
+    icsMV.setPos(4, 9900);
+    icsMV.setPos(5, 5100);
     delay(300);
     
-    icsMV.set_position(2, 8000);
+    icsMV.setSpd(2, speed);
+    icsMV.setPos(2, 8000);
     delay(200);
-    icsMV.set_position(2, 7000);
+    icsMV.setPos(2, 7000);
     delay(200);
-    icsMV.set_position(2, 7500);
+    icsMV.setPos(2, 7500);
     delay(200);
   }
   
@@ -402,24 +447,25 @@ void actionDance() {
 void actionTest() {
   Serial1.println(F("動作：測試"));
   
-  icsMV.set_speed(4, currentSpeed);
-  icsMV.set_speed(5, currentSpeed);
-  icsMV.set_speed(10, currentSpeed);
+  int speed = 20;
   
-  icsMV.set_position(4, 10300);
-  delay(300);
-  icsMV.set_position(4, 9900);
-  delay(300);
+  icsMV.setSpd(4, speed);
+  icsMV.setPos(4, 10300);
+  delay(500);
+  icsMV.setPos(4, 9900);
+  delay(500);
   
-  icsMV.set_position(5, 6500);
-  delay(300);
-  icsMV.set_position(5, 5100);
-  delay(300);
+  icsMV.setSpd(5, speed);
+  icsMV.setPos(5, 6500);
+  delay(500);
+  icsMV.setPos(5, 5100);
+  delay(500);
   
-  icsMV.set_position(10, 7000);
-  delay(300);
-  icsMV.set_position(10, 5000);
-  delay(300);
+  icsMV.setSpd(10, speed);
+  icsMV.setPos(10, 7000);
+  delay(500);
+  icsMV.setPos(10, 5000);
+  delay(500);
   
   Serial1.println(F("測試完成"));
 }
@@ -432,39 +478,48 @@ void setup() {
   Serial1.begin(115200);
   delay(100);
   
-  Serial1.println(F("\n=== ICS 3秒同步移動版本 (速度30) ==="));
+  Serial1.println(F("\n=== プリメイドAI 測試模式 ==="));
+  Serial1.println(F("所有 homepoint = 7500，無角度限制"));
+  Serial1.println(F("呼吸燈速度：2（非常慢）"));
   Serial1.println(F("命令列表："));
   showHelp();
   
-  Serial1.print(F("初始化 HV 伺服..."));
-  if (initHV()) Serial1.println(F("完成")); else Serial1.println(F("失敗！"));
+  // 紅色呼吸燈（初始化中）
+  for (int i = 0; i < 2; i++) {
+    breathLED(LED_RED_PIN, BREATH_SPEED);
+  }
   
-  Serial1.print(F("初始化 MV 伺服..."));
-  if (initMV()) Serial1.println(F("完成")); else Serial1.println(F("失敗！"));
-  
+  initServos();
   setLEDGreen();
+  
+  // 綠色呼吸燈（MPU6050 初始化中）
+  for (int i = 0; i < 2; i++) {
+    breathLED(LED_GREEN_PIN, BREATH_SPEED);
+  }
   
   Serial1.print(F("初始化 MPU6050..."));
   initMPU6050();
-  if (!mpuData.calibrated) calibrateGyro(500);
+  if (!mpuData.calibrated) {
+    calibrateGyro(500);
+  }
   
-  // 3秒同步移動到 home
-  moveAllServosToHomeSync();
+  moveAllServosToHome();
   
+  // 藍色呼吸燈（系統就緒）
+  for (int i = 0; i < 3; i++) {
+    breathLED(LED_BLUE_PIN, BREATH_SPEED);
+  }
   setLEDBlue();
-  delay(500);
   
   Serial1.println(F("\n=== 系統就緒 ==="));
-  Serial1.println(F("動作: STAND, WAVE, BOW, DANCE, TEST"));
-  Serial1.println(F("Tuning Mode: T"));
-  Serial1.println(F("速度: S+ (加快), S- (減慢), SPD (顯示)"));
-  Serial1.println(F("Gyro: G"));
+  Serial1.println(F("動作命令: STAND, WAVE, BOW, DANCE, TEST"));
+  Serial1.println(F("Tuning Mode 輸入 'T'"));
+  Serial1.println(F("Gyro 數據輸入 'G'"));
 }
 
 // ===== loop() =====
 void loop() {
   readMPU6050();
-  updateBreathing();
   
   while (Serial1.available()) {
     char c = Serial1.read();
@@ -479,10 +534,18 @@ void loop() {
     }
   }
   
+  // 系統閒置時緩慢呼吸
+  static unsigned long lastBreath = 0;
+  if (!tuningMode && millis() - lastBreath > 10000) {  // 每10秒呼吸一次
+    breathLED(LED_BLUE_PIN, BREATH_SPEED);
+    setLEDBlue();
+    lastBreath = millis();
+  }
+  
   delay(10);
 }
 
-// ===== 命令處理 =====
+// ===== 命令處理（無角度限制）=====
 void processCommand(String cmd) {
   cmd.trim();
   cmd.toUpperCase();
@@ -490,44 +553,62 @@ void processCommand(String cmd) {
   if (cmd == "H" || cmd == "HELP" || cmd == "?") {
     showHelp();
   }
+  else if (cmd == "G" || cmd == "GYRO") {
+    Serial1.println(F("\n=== 陀螺儀數據 ==="));
+    Serial1.print(F("陀螺儀 (°/s): X="));
+    Serial1.print(mpuData.gx, 2);
+    Serial1.print(F(" Y="));
+    Serial1.print(mpuData.gy, 2);
+    Serial1.print(F(" Z="));
+    Serial1.println(mpuData.gz, 2);
+    
+    Serial1.print(F("加速度 (g): X="));
+    Serial1.print(mpuData.ax, 2);
+    Serial1.print(F(" Y="));
+    Serial1.print(mpuData.ay, 2);
+    Serial1.print(F(" Z="));
+    Serial1.println(mpuData.az, 2);
+    
+    Serial1.print(F("溫度: "));
+    Serial1.print(mpuData.temperature, 1);
+    Serial1.println(F("°C"));
+  }
   else if (cmd == "T") {
     tuningMode = true;
     currentServoIndex = 0;
     
     ServoInfo *s = &servoList[currentServoIndex];
-    s->currentTunePos = s->homePosition;
     
-    Serial1.println(F("\n=== Tuning Mode ==="));
+    // 進入 Tuning Mode 時綠色呼吸
+    for (int i = 0; i < 2; i++) {
+      breathLED(LED_GREEN_PIN, BREATH_SPEED);
+    }
+    setLEDGreen();
+    
+    Serial1.println(F("\n=== Tuning Mode（用 setPos 讀取位置）==="));
+    
+    // 用 setPos 讀取當前位置
+    int pos = s->icsPort->setPos(s->servoID, 7500);
+    
+    if (pos != ICS_FALSE && pos >= 3500 && pos <= 11500) {
+      s->currentTunePos = pos;
+      Serial1.print(F("讀取到當前位置: "));
+      Serial1.println(pos);
+    } else {
+      s->currentTunePos = 7500;
+      Serial1.println(F("⚠️ 讀取位置失敗，使用 7500"));
+    }
+    
     showCurrentServoInfo();
   }
   else if (cmd == "Q" || cmd == "EXIT") {
     tuningMode = false;
     Serial1.println(F("退出Tuning Mode"));
-  }
-  else if (cmd == "G" || cmd == "GYRO") {
-    Serial1.println(F("\n=== 陀螺儀數據 ==="));
-    Serial1.print(F("陀螺儀: X=")); Serial1.print(mpuData.gx, 2);
-    Serial1.print(F(" Y=")); Serial1.print(mpuData.gy, 2);
-    Serial1.print(F(" Z=")); Serial1.println(mpuData.gz, 2);
-    Serial1.print(F("加速度: X=")); Serial1.print(mpuData.ax, 2);
-    Serial1.print(F(" Y=")); Serial1.print(mpuData.ay, 2);
-    Serial1.print(F(" Z=")); Serial1.println(mpuData.az, 2);
-  }
-  else if (cmd == "S+") {
-    currentSpeed += 10;
-    if (currentSpeed > 127) currentSpeed = 127;
-    Serial1.print(F("✓ 速度設為: "));
-    Serial1.println(currentSpeed);
-  }
-  else if (cmd == "S-") {
-    currentSpeed -= 10;
-    if (currentSpeed < 2) currentSpeed = 2;
-    Serial1.print(F("✓ 速度設為: "));
-    Serial1.println(currentSpeed);
-  }
-  else if (cmd == "SPD") {
-    Serial1.print(F("當前速度: "));
-    Serial1.println(currentSpeed);
+    // 回到藍燈
+    for (int i = 0; i < 2; i++) {
+      breathLED(LED_BLUE_PIN, BREATH_SPEED);
+    }
+    setLEDBlue();
   }
   else if (cmd == "STAND") {
     actionStand();
@@ -546,6 +627,11 @@ void processCommand(String cmd) {
   }
   else if (tuningMode) {
     ServoInfo *s = &servoList[currentServoIndex];
+    
+    // 檢查當前位置是否合理
+    if (s->currentTunePos < 3500 || s->currentTunePos > 11500) {
+      s->currentTunePos = 7500;
+    }
     
     if (cmd == "+") {
       updateServoPosition(ANGLE_STEP_NORMAL);
@@ -566,16 +652,13 @@ void processCommand(String cmd) {
       prevServo();
     }
     else if (cmd == "HOME") {
-      if (s->isHV) {
-        icsHV.set_speed(s->servoID, currentSpeed);
-        icsHV.set_position(s->servoID, s->homePosition);
+      int result = s->icsPort->setPos(s->servoID, 7500);
+      if (result != ICS_FALSE) {
+        s->currentTunePos = 7500;
+        Serial1.println(F("返回 7500"));
       } else {
-        icsMV.set_speed(s->servoID, currentSpeed);
-        icsMV.set_position(s->servoID, s->homePosition);
+        Serial1.println(F("通訊失敗"));
       }
-      s->currentTunePos = s->homePosition;
-      Serial1.print(F("返回Home: "));
-      Serial1.println(s->homePosition);
     }
     else if (cmd == "SHOW") {
       showCurrentServoInfo();
@@ -583,16 +666,14 @@ void processCommand(String cmd) {
     else if (cmd.startsWith("SET ")) {
       int pos = cmd.substring(4).toInt();
       if (pos >= 3500 && pos <= 11500) {
-        s->currentTunePos = pos;
-        if (s->isHV) {
-          icsHV.set_speed(s->servoID, currentSpeed);
-          icsHV.set_position(s->servoID, pos);
+        int result = s->icsPort->setPos(s->servoID, pos);
+        if (result != ICS_FALSE) {
+          s->currentTunePos = pos;
+          Serial1.print(F("設定角度: "));
+          Serial1.println(pos);
         } else {
-          icsMV.set_speed(s->servoID, currentSpeed);
-          icsMV.set_position(s->servoID, pos);
+          Serial1.println(F("✗ 通訊失敗"));
         }
-        Serial1.print(F("設定角度: "));
-        Serial1.println(pos);
       } else {
         Serial1.println(F("角度必須在 3500-11500 之間"));
       }
@@ -600,10 +681,18 @@ void processCommand(String cmd) {
     else if (cmd.startsWith("ID ")) {
       int id = cmd.substring(3).toInt();
       for (int i = 0; i < TOTAL_SERVO_NUM; i++) {
-        if (servoList[i].servoID == id && servoList[i].isHV == s->isHV) {
+        if (servoList[i].servoID == id) {
           currentServoIndex = i;
           ServoInfo *s2 = &servoList[currentServoIndex];
-          s2->currentTunePos = s2->homePosition;
+          
+          // 用 setPos 讀取位置
+          int pos = s2->icsPort->setPos(s2->servoID, 7500);
+          if (pos != ICS_FALSE && pos >= 3500 && pos <= 11500) {
+            s2->currentTunePos = pos;
+          } else {
+            s2->currentTunePos = 7500;
+          }
+          
           showCurrentServoInfo();
           return;
         }
@@ -611,7 +700,15 @@ void processCommand(String cmd) {
       Serial1.println(F("找不到指定ID"));
     }
     else {
-      Serial1.println(F("Tuning Mode可用命令： +/-, ++/--, NEXT/PREV, HOME, SET, ID, SHOW, Q"));
+      Serial1.println(F("Tuning Mode可用命令："));
+      Serial1.println(F("  + / -       : +/-50度"));
+      Serial1.println(F("  ++ / --     : +/-10度"));
+      Serial1.println(F("  NEXT / PREV : 下一個/上一個伺服"));
+      Serial1.println(F("  HOME        : 返回7500"));
+      Serial1.println(F("  SET 7500    : 直接設定角度"));
+      Serial1.println(F("  ID 5        : 跳去指定ID"));
+      Serial1.println(F("  SHOW        : 顯示目前資訊"));
+      Serial1.println(F("  Q           : 退出Tuning Mode"));
     }
   }
   else {
@@ -624,11 +721,8 @@ void showHelp() {
   Serial1.println(F("H, HELP, ? : 顯示說明"));
   Serial1.println(F("T          : 進入Tuning Mode"));
   Serial1.println(F("G, GYRO    : 顯示陀螺儀數據"));
-  Serial1.println(F("S+         : 加快速度 (+10)"));
-  Serial1.println(F("S-         : 減慢速度 (-10)"));
-  Serial1.println(F("SPD        : 顯示當前速度"));
   Serial1.println(F("\n=== 動作命令 ==="));
-  Serial1.println(F("STAND      : 企直 (3秒同步)"));
+  Serial1.println(F("STAND      : 企直 (7500)"));
   Serial1.println(F("WAVE       : 舉手打招呼"));
   Serial1.println(F("BOW        : 鞠躬"));
   Serial1.println(F("DANCE      : 簡單跳舞"));
@@ -637,11 +731,11 @@ void showHelp() {
   Serial1.println(F("  + / -       : +/-50度"));
   Serial1.println(F("  ++ / --     : +/-10度"));
   Serial1.println(F("  NEXT / PREV : 下一個/上一個伺服"));
-  Serial1.println(F("  HOME        : 返回Home點"));
+  Serial1.println(F("  HOME        : 返回7500"));
   Serial1.println(F("  SET 7500    : 直接設定角度"));
   Serial1.println(F("  ID 5        : 跳去指定ID"));
   Serial1.println(F("  SHOW        : 顯示目前資訊"));
-  Serial1.println(F("  Q, EXIT     : 退出"));
+  Serial1.println(F("  Q, EXIT     : 退出Tuning Mode"));
   Serial1.println(F("==================="));
 }
 
@@ -654,33 +748,39 @@ void showCurrentServoInfo() {
   Serial1.print(s->name);
   Serial1.print(F("] 角度: "));
   Serial1.print(s->currentTunePos);
-  Serial1.print(F(" ("));
-  Serial1.print(s->minAngle);
-  Serial1.print(F("-"));
-  Serial1.print(s->maxAngle);
-  Serial1.println(F(")"));
+  Serial1.println(F(" (無限制)"));
 }
 
 void updateServoPosition(int delta) {
   ServoInfo *s = &servoList[currentServoIndex];
   
+  // 確保當前位置在合理範圍內
+  if (s->currentTunePos < 3500 || s->currentTunePos > 11500) {
+    s->currentTunePos = 7500;
+  }
+  
   int newPos = s->currentTunePos + delta;
   
-  if (newPos < s->minAngle) newPos = s->minAngle;
-  if (newPos > s->maxAngle) newPos = s->maxAngle;
+  // 只限制在 ICS 硬體範圍內
+  if (newPos < 3500) newPos = 3500;
+  if (newPos > 11500) newPos = 11500;
   
   if (newPos != s->currentTunePos) {
     s->currentTunePos = newPos;
-    if (s->isHV) {
-      icsHV.set_speed(s->servoID, currentSpeed);
-      icsHV.set_position(s->servoID, s->currentTunePos);
-    } else {
-      icsMV.set_speed(s->servoID, currentSpeed);
-      icsMV.set_position(s->servoID, s->currentTunePos);
-    }
     
-    Serial1.print(F("  ➔ 新位置: "));
-    Serial1.println(s->currentTunePos);
+    // setPos 會回傳伺服確認的位置
+    int result = s->icsPort->setPos(s->servoID, s->currentTunePos);
+    
+    if (result != ICS_FALSE) {
+      // 如果回傳值和我們設定的不同，更新顯示
+      if (result != s->currentTunePos) {
+        s->currentTunePos = result;
+      }
+      Serial1.print(F("  ➔ "));
+      Serial1.println(s->currentTunePos);
+    } else {
+      Serial1.println(F("  ✗ 通訊失敗"));
+    }
   }
 }
 
@@ -690,6 +790,19 @@ void nextServo() {
     currentServoIndex = 0;
   }
   
+  ServoInfo *s = &servoList[currentServoIndex];
+  
+  // 用 setPos 讀取位置
+  int pos = s->icsPort->setPos(s->servoID, 7500);
+  if (pos != ICS_FALSE && pos >= 3500 && pos <= 11500) {
+    s->currentTunePos = pos;
+    Serial1.print(F("讀取到位置: "));
+    Serial1.println(pos);
+  } else {
+    s->currentTunePos = 7500;
+    Serial1.println(F("⚠️ 使用 7500"));
+  }
+  
   showCurrentServoInfo();
 }
 
@@ -697,6 +810,19 @@ void prevServo() {
   currentServoIndex--;
   if (currentServoIndex < 0) {
     currentServoIndex = TOTAL_SERVO_NUM - 1;
+  }
+  
+  ServoInfo *s = &servoList[currentServoIndex];
+  
+  // 用 setPos 讀取位置
+  int pos = s->icsPort->setPos(s->servoID, 7500);
+  if (pos != ICS_FALSE && pos >= 3500 && pos <= 11500) {
+    s->currentTunePos = pos;
+    Serial1.print(F("讀取到位置: "));
+    Serial1.println(pos);
+  } else {
+    s->currentTunePos = 7500;
+    Serial1.println(F("⚠️ 使用 7500"));
   }
   
   showCurrentServoInfo();
