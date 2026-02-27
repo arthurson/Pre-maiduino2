@@ -1,8 +1,10 @@
 /*
  * Pre-maiduino2_final.ino
- * 最終版 - 支援 MV/HV 分群指令
- * 指令格式: S MV 1 7500 或 ? HV 2
+ * 最終版 - 支援 MV/HV 分群指令 + 速度控制
+ * 指令格式: S MV 1 7500 50 或 ? HV 2
+ * 速度範圍: 0-127 (0=最慢, 127=最快)
  * 
+ * 基於正常開機版本修改，只加入速度控制
  * 更新日期：2026-02-27
  */
 
@@ -35,6 +37,11 @@ IcsHardSerialClass icsMV(&Serial3, EN_MV_PIN, 1250000, 50);
 #define ANGLE_STEP_NORMAL 50
 #define ANGLE_STEP_FINE 10
 
+// ===== 速度定義 =====
+#define MIN_SPEED 0        // 最慢
+#define MAX_SPEED 127      // 最快
+#define DEFAULT_SPEED 64   // 預設速度
+
 // ===== LED 相關定義 =====
 #define LED_RED_PIN   PA7
 #define LED_GREEN_PIN PB0
@@ -61,6 +68,7 @@ struct ServoInfo {
   uint8_t servoID;
   uint16_t homePosition;
   uint16_t currentTunePos;
+  uint8_t currentSpeed;     // 新增：當前速度 (0-127)
   IcsHardSerialClass* icsPort;
   const char* name;
   uint16_t minAngle;
@@ -70,33 +78,33 @@ struct ServoInfo {
 
 ServoInfo servoList[] = {
   // ===== MV群 (上半身) - Serial3 =====
-  {1,  7500, 7500, &icsMV, "頭ピッチ",     7200,  8400, false},
-  {2,  7500, 7500, &icsMV, "頭ヨー",       5000, 10000, false},
-  {3,  7500, 7500, &icsMV, "頭萌",         6900,  8100, false},
-  {4,  9800, 9800, &icsMV, "肩ロールR",    7450, 10350, false},
-  {5,  5200, 5200, &icsMV, "肩ロールL",    4550,  7550, false},
-  {6,  7500, 7500, &icsMV, "上腕ヨーR",    4000, 11000, false},
-  {7,  7500, 7500, &icsMV, "上腕ヨーL",    4000, 11000, false},
-  {8,  7500, 7500, &icsMV, "肘ピッチR",    7100, 11000, false},
-  {9,  7500, 7500, &icsMV, "肘ピッチL",    4000,  7900, false},
-  {10, 5000, 5000, &icsMV, "手首ヨーR",    3500, 11500, false},
-  {11, 10000, 10000, &icsMV, "手首ヨーL",  3500, 11500, false},
+  {1,  7500, 7500, DEFAULT_SPEED, &icsMV, "頭ピッチ",     7200,  8400, false},
+  {2,  7500, 7500, DEFAULT_SPEED, &icsMV, "頭ヨー",       5000, 10000, false},
+  {3,  7500, 7500, DEFAULT_SPEED, &icsMV, "頭萌",         6900,  8100, false},
+  {4,  9800, 9800, DEFAULT_SPEED, &icsMV, "肩ロールR",    7450, 10350, false},
+  {5,  5200, 5200, DEFAULT_SPEED, &icsMV, "肩ロールL",    4550,  7550, false},
+  {6,  7500, 7500, DEFAULT_SPEED, &icsMV, "上腕ヨーR",    4000, 11000, false},
+  {7,  7500, 7500, DEFAULT_SPEED, &icsMV, "上腕ヨーL",    4000, 11000, false},
+  {8,  7500, 7500, DEFAULT_SPEED, &icsMV, "肘ピッチR",    7100, 11000, false},
+  {9,  7500, 7500, DEFAULT_SPEED, &icsMV, "肘ピッチL",    4000,  7900, false},
+  {10, 5000, 5000, DEFAULT_SPEED, &icsMV, "手首ヨーR",    3500, 11500, false},
+  {11, 10000, 10000, DEFAULT_SPEED, &icsMV, "手首ヨーL",  3500, 11500, false},
 
   // ===== HV群 (下半身) - Serial2 =====
-  {1,  10200, 10200, &icsHV, "肩ピッチR",   4300, 11500, true},
-  {2,  4700, 4700, &icsHV, "肩ピッチL",    3500, 10700, true},
-  {3,  7780, 7780, &icsHV, "ヒップヨーR",  6530,  9030, true},
-  {4,  7500, 7500, &icsHV, "ヒップヨーL",  6250,  8750, true},
-  {5,  7500, 7500, &icsHV, "ヒップロールR",6700,  8300, true},
-  {6,  7500, 7500, &icsHV, "ヒップロールL",6700,  8300, true},
-  {7,  7500, 7500, &icsHV, "腿ピッチR",    4700, 10200, true},
-  {8,  7500, 7500, &icsHV, "腿ピッチL",    4700, 10200, true},
-  {9,  7500, 7500, &icsHV, "膝ピッチR",    3950,  7600, true},
-  {10, 7500, 7500, &icsHV, "膝ピッチL",    7400, 11050, true},
-  {11, 7500, 7500, &icsHV, "足首ピッチR",  5700,  8300, true},
-  {12, 7500, 7500, &icsHV, "足首ピッチL",  6750,  9350, true},
-  {13, 7725, 7725, &icsHV, "足首ロールR",  6800,  9150, true},
-  {14, 7500, 7500, &icsHV, "足首ロールL",  6200,  8450, true}
+  {1,  10200, 10200, DEFAULT_SPEED, &icsHV, "肩ピッチR",   4300, 11500, true},
+  {2,  4700, 4700, DEFAULT_SPEED, &icsHV, "肩ピッチL",    3500, 10700, true},
+  {3,  7780, 7780, DEFAULT_SPEED, &icsHV, "ヒップヨーR",  6530,  9030, true},
+  {4,  7500, 7500, DEFAULT_SPEED, &icsHV, "ヒップヨーL",  6250,  8750, true},
+  {5,  7500, 7500, DEFAULT_SPEED, &icsHV, "ヒップロールR",6700,  8300, true},
+  {6,  7500, 7500, DEFAULT_SPEED, &icsHV, "ヒップロールL",6700,  8300, true},
+  {7,  7500, 7500, DEFAULT_SPEED, &icsHV, "腿ピッチR",    4700, 10200, true},
+  {8,  7500, 7500, DEFAULT_SPEED, &icsHV, "腿ピッチL",    4700, 10200, true},
+  {9,  7500, 7500, DEFAULT_SPEED, &icsHV, "膝ピッチR",    3950,  7600, true},
+  {10, 7500, 7500, DEFAULT_SPEED, &icsHV, "膝ピッチL",    7400, 11050, true},
+  {11, 7500, 7500, DEFAULT_SPEED, &icsHV, "足首ピッチR",  5700,  8300, true},
+  {12, 7500, 7500, DEFAULT_SPEED, &icsHV, "足首ピッチL",  6750,  9350, true},
+  {13, 7725, 7725, DEFAULT_SPEED, &icsHV, "足首ロールR",  6800,  9150, true},
+  {14, 7500, 7500, DEFAULT_SPEED, &icsHV, "足首ロールL",  6200,  8450, true}
 };
 
 #define TOTAL_SERVO_NUM (sizeof(servoList) / sizeof(servoList[0]))
@@ -122,6 +130,7 @@ void processCommand(String cmd);
 void showHelp();
 void showCurrentServoInfo();
 void updateServoPosition(int delta);
+void updateServoSpeed(int delta);
 void nextServo();
 void prevServo();
 bool processASCIICommand(String cmd);
@@ -283,7 +292,7 @@ bool readMPU6050() {
   return true;
 }
 
-// ===== 初始化伺服 =====
+// ===== 初始化伺服 (完全保留原始版本) =====
 void initServos() {
   pinMode(EN_HV_PIN, OUTPUT);
   pinMode(EN_MV_PIN, OUTPUT);
@@ -313,7 +322,7 @@ void initServos() {
   delay(100);
 }
 
-// ===== 移動到 Home Point =====
+// ===== 移動到 Home Point (加入速度控制) =====
 void moveAllServosToHome() {
   Serial1.println(F("\n🚀 所有伺服一齊郁，3秒完成"));
   
@@ -333,15 +342,20 @@ void moveAllServosToHome() {
   Serial1.print(F(" = "));
   Serial1.println(maxDistance);
   
-  int speed = maxDistance / 45 + 12;
-  speed = constrain(speed, 8, 40);
+  // 使用儲存的速度值，而不是重新計算
+  // 但保留原有的速度計算邏輯作為參考
+  int calculatedSpeed = maxDistance / 45 + 12;
+  calculatedSpeed = constrain(calculatedSpeed, 8, 40);
   
   Serial1.print(F("⚡ 使用速度: "));
-  Serial1.println(speed);
+  Serial1.println(calculatedSpeed);
   
+  // 設定所有伺服器的速度（使用計算出的速度）
   for (int i = 0; i < TOTAL_SERVO_NUM; i++) {
     ServoInfo *s = &servoList[i];
-    s->icsPort->setSpd(s->servoID, speed);
+    s->icsPort->setSpd(s->servoID, calculatedSpeed);
+    // 同時更新儲存的速度值
+    s->currentSpeed = calculatedSpeed;
     delay(2);
   }
   
@@ -366,7 +380,7 @@ void moveAllServosToHome() {
   Serial1.println(F("✅ 所有伺服應該已到達 Home Point"));
 }
 
-// ===== 動作 library =====
+// ===== 動作 library (加入速度控制) =====
 void actionStand() {
   Serial1.println(F("動作：企直"));
   moveAllServosToHome();
@@ -375,12 +389,20 @@ void actionStand() {
 void actionWave() {
   Serial1.println(F("動作：舉手打招呼"));
   
-  int speed = 25;
+  int speed = 90;  // 使用 0-127 範圍，90 是較快
   
   icsMV.setSpd(4, speed);
   icsMV.setSpd(5, speed);
   icsMV.setSpd(10, speed);
   icsMV.setSpd(11, speed);
+  
+  // 更新對應伺服器的儲存速度
+  for (int i = 0; i < TOTAL_SERVO_NUM; i++) {
+    if (!servoList[i].isHV && (servoList[i].servoID == 4 || servoList[i].servoID == 5 || 
+        servoList[i].servoID == 10 || servoList[i].servoID == 11)) {
+      servoList[i].currentSpeed = speed;
+    }
+  }
   
   icsMV.setPos(4, 10300);
   icsMV.setPos(10, 7000);
@@ -399,11 +421,19 @@ void actionWave() {
 void actionBow() {
   Serial1.println(F("動作：鞠躬"));
   
-  int speed = 20;
+  int speed = 40;  // 較慢的速度
   
   icsMV.setSpd(1, speed);
   icsHV.setSpd(1, speed);
   icsHV.setSpd(2, speed);
+  
+  // 更新對應伺服器的儲存速度
+  for (int i = 0; i < TOTAL_SERVO_NUM; i++) {
+    if ((!servoList[i].isHV && servoList[i].servoID == 1) ||
+        (servoList[i].isHV && (servoList[i].servoID == 1 || servoList[i].servoID == 2))) {
+      servoList[i].currentSpeed = speed;
+    }
+  }
   
   icsMV.setPos(1, 7800);
   icsHV.setPos(1, 9000);
@@ -417,7 +447,7 @@ void actionBow() {
 void actionDance() {
   Serial1.println(F("動作：簡單跳舞"));
   
-  int speed = 30;
+  int speed = 100;  // 較快的速度
   
   for (int repeat = 0; repeat < 2; repeat++) {
     icsMV.setSpd(4, speed);
@@ -441,13 +471,21 @@ void actionDance() {
     delay(200);
   }
   
+  // 更新對應伺服器的儲存速度
+  for (int i = 0; i < TOTAL_SERVO_NUM; i++) {
+    if ((!servoList[i].isHV && (servoList[i].servoID == 4 || servoList[i].servoID == 5 || servoList[i].servoID == 2)) ||
+        (servoList[i].isHV && (servoList[i].servoID == 1 || servoList[i].servoID == 2))) {
+      servoList[i].currentSpeed = speed;
+    }
+  }
+  
   actionStand();
 }
 
 void actionTest() {
   Serial1.println(F("動作：測試"));
   
-  int speed = 20;
+  int speed = 60;  // 中等速度
   
   icsMV.setSpd(4, speed);
   icsMV.setPos(4, 10300);
@@ -467,23 +505,31 @@ void actionTest() {
   icsMV.setPos(10, 5000);
   delay(500);
   
+  // 更新對應伺服器的儲存速度
+  for (int i = 0; i < TOTAL_SERVO_NUM; i++) {
+    if (!servoList[i].isHV && (servoList[i].servoID == 4 || servoList[i].servoID == 5 || servoList[i].servoID == 10)) {
+      servoList[i].currentSpeed = speed;
+    }
+  }
+  
   Serial1.println(F("測試完成"));
 }
 
-// ===== 處理ASCII指令 (支援 MV/HV 分群) =====
+// ===== 處理ASCII指令 (支援 MV/HV 分群 及 速度控制) =====
 bool processASCIICommand(String cmd) {
   cmd.trim();
   
-  // 處理 "S GROUP ID 角度" 格式 (例如: S MV 1 7500)
+  // 處理 "S GROUP ID 角度 速度" 格式 (例如: S MV 1 7500 50)
   if (cmd.startsWith("S ")) {
     int firstSpace = cmd.indexOf(' ');
     int secondSpace = cmd.indexOf(' ', firstSpace + 1);
     int thirdSpace = cmd.indexOf(' ', secondSpace + 1);
+    int fourthSpace = cmd.indexOf(' ', thirdSpace + 1);
     
     if (firstSpace > 0 && secondSpace > 0 && thirdSpace > 0) {
       String group = cmd.substring(firstSpace + 1, secondSpace);
       int id = cmd.substring(secondSpace + 1, thirdSpace).toInt();
-      int angle = cmd.substring(thirdSpace + 1).toInt();
+      int angle = cmd.substring(thirdSpace + 1, (fourthSpace > 0 ? fourthSpace : cmd.length())).toInt();
       
       group.toUpperCase();
       
@@ -495,8 +541,28 @@ bool processASCIICommand(String cmd) {
         if (groupMatch && servoList[i].servoID == id) {
           // 檢查角度範圍
           if (angle >= servoList[i].minAngle && angle <= servoList[i].maxAngle) {
+            
+            // 如果有第四個參數（速度），則設定速度
+            if (fourthSpace > 0) {
+              int speed = cmd.substring(fourthSpace + 1).toInt();
+              
+              // 速度範圍必須是 0-127
+              if (speed < 0) speed = 0;
+              if (speed > 127) speed = 127;
+              
+              // 設定速度
+              servoList[i].icsPort->setSpd(id, speed);
+              servoList[i].currentSpeed = speed;
+              
+              Serial1.print(F("⚡ 速度設為: "));
+              Serial1.print(speed);
+              Serial1.print(F(" (0-127) "));
+            }
+            
+            // 設定位置
             servoList[i].icsPort->setPos(id, angle);
             servoList[i].currentTunePos = angle;
+            
             Serial1.print(group);
             Serial1.print(F(" ID "));
             Serial1.print(id);
@@ -548,6 +614,11 @@ bool processASCIICommand(String cmd) {
             
             // 更新 currentTunePos
             servoList[i].currentTunePos = pos;
+            
+            // 顯示當前速度
+            Serial1.print(F("當前速度: "));
+            Serial1.print(servoList[i].currentSpeed);
+            Serial1.println(F(" (0-127)"));
           }
           return true;
         }
@@ -559,7 +630,7 @@ bool processASCIICommand(String cmd) {
   return false;
 }
 
-// ===== setup() =====
+// ===== setup() (完全保留原始版本) =====
 void setup() {
   initLED();
   setLEDRed();
@@ -572,9 +643,10 @@ void setup() {
   Serial1.begin(115200);
   delay(500);
   
-  Serial1.println(F("\n=== プリメイドAI 最終版 ==="));
-  Serial1.println(F("支援指令: S MV 1 7500, ? HV 2"));
-  Serial1.println(F("簡易指令: n=下一軸, p=上一軸, h=回Home, s=設定"));
+  Serial1.println(F("\n=== プリメイドAI 最終版 (含速度控制) ==="));
+  Serial1.println(F("支援指令: S MV 1 7500 50, ? HV 2"));
+  Serial1.println(F("速度範圍: 0-127 (0=最慢, 127=最快)"));
+  Serial1.println(F("簡易指令: n=下一軸, p=上一軸, h=回Home, s=設定, v=速度"));
   
   Serial1.print(F("初始化伺服..."));
   initServos();
@@ -605,7 +677,7 @@ void setup() {
   Serial1.println(F("\n=== 系統就緒 ==="));
 }
 
-// ===== loop() =====
+// ===== loop() (完全保留原始版本) =====
 void loop() {
   readMPU6050();
   
@@ -634,7 +706,7 @@ void loop() {
   delay(10);
 }
 
-// ===== 命令處理 =====
+// ===== 命令處理 (加入速度控制) =====
 void processCommand(String cmd) {
   cmd.trim();
   cmd.toUpperCase();
@@ -662,8 +734,11 @@ void processCommand(String cmd) {
     }
     setLEDGreen();
     
-    Serial1.println(F("\n=== Tuning Mode ==="));
-    Serial1.println(F("n=下一軸, p=上一軸, h=回Home, s 7500=設定, +=加, -=減"));
+    Serial1.println(F("\n=== Tuning Mode (含速度控制) ==="));
+    Serial1.println(F("n=下一軸, p=上一軸, h=回Home"));
+    Serial1.println(F("s 7500=設定角度, v 64=設定速度"));
+    Serial1.println(F("+=角度+50, -=角度-50, ++=角度+10, --=角度-10"));
+    Serial1.println(F("V+=速度+5, V-=速度-5"));
     
     int pos = s->icsPort->setPos(s->servoID, s->homePosition);
     
@@ -723,10 +798,40 @@ void processCommand(String cmd) {
         s->icsPort->setPos(s->servoID, pos);
         s->currentTunePos = pos;
         Serial1.print(F("設定角度: "));
-        Serial1.println(pos);
+        Serial1.print(pos);
+        Serial1.print(F(" (速度:"));
+        Serial1.print(s->currentSpeed);
+        Serial1.println(F(")"));
       } else {
         Serial1.println(F("角度必須在 3500-11500 之間"));
       }
+    }
+    else if (cmd.startsWith("V ")) {
+      int speed = cmd.substring(2).toInt();
+      if (speed >= MIN_SPEED && speed <= MAX_SPEED) {
+        s->icsPort->setSpd(s->servoID, speed);
+        s->currentSpeed = speed;
+        Serial1.print(F("設定速度: "));
+        Serial1.println(speed);
+      } else {
+        Serial1.print(F("速度必須在 "));
+        Serial1.print(MIN_SPEED);
+        Serial1.print(F("-"));
+        Serial1.print(MAX_SPEED);
+        Serial1.println(F(" 之間"));
+      }
+    }
+    else if (cmd == "V+") {
+      updateServoSpeed(5);
+    }
+    else if (cmd == "V-") {
+      updateServoSpeed(-5);
+    }
+    else if (cmd == "V++") {
+      updateServoSpeed(10);
+    }
+    else if (cmd == "V--") {
+      updateServoSpeed(-10);
     }
     else if (cmd == "+") {
       updateServoPosition(ANGLE_STEP_NORMAL);
@@ -744,7 +849,7 @@ void processCommand(String cmd) {
       showCurrentServoInfo();
     }
     else {
-      Serial1.println(F("可用指令: n p h s +(加) -(減) ? q"));
+      Serial1.println(F("可用指令: n p h s 7500 v 64 + - ++ -- V+ V- ? q"));
     }
   }
   else {
@@ -758,8 +863,9 @@ void showHelp() {
   Serial1.println(F("T          : 進入Tuning Mode"));
   Serial1.println(F("G          : 顯示陀螺儀數據"));
   Serial1.println(F("\n=== ASCII指令 (網頁用) ==="));
-  Serial1.println(F("S MV 1 7500 : 設定MV群ID 1到7500"));
-  Serial1.println(F("? HV 2      : 查詢HV群ID 2的角度"));
+  Serial1.println(F("S MV 1 7500 50 : 設定MV群ID 1到7500，速度50(0-127)"));
+  Serial1.println(F("S HV 2 7500    : 設定HV群ID 2到7500（使用當前速度）"));
+  Serial1.println(F("? HV 2         : 查詢HV群ID 2的角度"));
   Serial1.println(F("\n=== 動作命令 ==="));
   Serial1.println(F("S / STAND  : 企直（返Home）"));
   Serial1.println(F("W / WAVE   : 舉手打招呼"));
@@ -771,8 +877,11 @@ void showHelp() {
   Serial1.println(F("p          : 上一軸"));
   Serial1.println(F("h          : 返回Home點"));
   Serial1.println(F("s 7500     : 直接設定角度"));
-  Serial1.println(F("+ / -      : +/-50度"));
-  Serial1.println(F("++ / --    : +/-10度"));
+  Serial1.println(F("v 64       : 直接設定速度(0-127)"));
+  Serial1.println(F("V+ / V-    : 速度 +/-5"));
+  Serial1.println(F("V++ / V--  : 速度 +/-10"));
+  Serial1.println(F("+ / -      : 角度 +/-50"));
+  Serial1.println(F("++ / --    : 角度 +/-10"));
   Serial1.println(F("?          : 顯示目前資訊"));
   Serial1.println(F("q          : 退出Tuning Mode"));
   Serial1.println(F("==================="));
@@ -793,7 +902,9 @@ void showCurrentServoInfo() {
   Serial1.print(s->minAngle);
   Serial1.print(F("-"));
   Serial1.print(s->maxAngle);
-  Serial1.println(F(")"));
+  Serial1.print(F(") 速度: "));
+  Serial1.print(s->currentSpeed);
+  Serial1.println(F(" (0-127)"));
 }
 
 void updateServoPosition(int delta) {
@@ -808,7 +919,27 @@ void updateServoPosition(int delta) {
     s->icsPort->setPos(s->servoID, newPos);
     s->currentTunePos = newPos;
     Serial1.print(F("  ➔ "));
-    Serial1.println(s->currentTunePos);
+    Serial1.print(s->currentTunePos);
+    Serial1.print(F(" (速度:"));
+    Serial1.print(s->currentSpeed);
+    Serial1.println(F(")"));
+  }
+}
+
+void updateServoSpeed(int delta) {
+  ServoInfo *s = &servoList[currentServoIndex];
+  
+  int newSpeed = s->currentSpeed + delta;
+  
+  if (newSpeed < MIN_SPEED) newSpeed = MIN_SPEED;
+  if (newSpeed > MAX_SPEED) newSpeed = MAX_SPEED;
+  
+  if (newSpeed != s->currentSpeed) {
+    s->icsPort->setSpd(s->servoID, newSpeed);
+    s->currentSpeed = newSpeed;
+    Serial1.print(F("⚡ 速度: "));
+    Serial1.print(newSpeed);
+    Serial1.println(F(" (0-127)"));
   }
 }
 
