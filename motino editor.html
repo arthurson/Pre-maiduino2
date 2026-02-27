@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プリメイドAI 25軸控制器 - 數字輸入版</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        body {
+            background: #1a1a2e;
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00d4ff;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        h1 small {
+            font-size: 14px;
+            color: #888;
+            display: block;
+        }
+        
+        /* 快捷鍵提示欄 */
+        .shortcuts-bar {
+            background: #16213e;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+            border: 1px solid #00d4ff33;
+        }
+        .shortcut-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .shortcut-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: #0f3460;
+            padding: 5px 12px;
+            border-radius: 20px;
+        }
+        .key {
+            background: #00d4ff;
+            color: #1a1a2e;
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 14px;
+            min-width: 30px;
+            text-align: center;
+        }
+        .key.home { background: #ffaa00; }
+        .key.gyro { background: #9b59b6; }
+        .key.part { background: #3498db; }
+        .key-hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+        
+        /* 頂部控制列 - 所有按鈕同一行 */
+        .top-control-bar {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            background: #00d4ff;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+        .btn:hover {
+            background: #00b8e6;
+            transform: scale(1.02);
+        }
+        .btn-danger {
+            background: #ff4444;
+            color: white;
+        }
+        .btn-success {
+            background: #00cc66;
+            color: white;
+        }
+        .btn-warning {
+            background: #ffaa00;
+            color: black;
+        }
+        .btn-home {
+            background: #ffaa00;
+            color: black;
+            font-size: 14px;
+            padding: 10px 15px;
+        }
+        .btn-home-all {
+            background: #ffaa00;
+            color: black;
+            font-size: 14px;
+            padding: 10px 20px;
+        }
+        .btn-gyro {
+            background: #9b59b6;
+            color: white;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            flex: 1;
+            padding: 8px 15px;
+            background: #0f3460;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        .separator {
+            width: 1px;
+            height: 30px;
+            background: #0f3460;
+            margin: 0 5px;
+        }
+        
+        /* 主區域 - 左右佈局 */
+        .main-area {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        /* 左側：部位選擇 */
+        .robot-diagram {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .robot-title {
+            color: #00d4ff;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #0f3460;
+        }
+        .part-button {
+            width: 100%;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            font-size: 1.2em;
+            font-weight: bold;
+            text-align: center;
+            transition: 0.2s;
+        }
+        .part-button.head {
+            background: #9b59b6;
+            color: white;
+        }
+        .part-button.hand {
+            background: #3498db;
+            color: white;
+        }
+        .part-button.leg {
+            background: #e67e22;
+            color: white;
+        }
+        .part-button.active {
+            border-color: #00d4ff;
+            box-shadow: 0 0 15px #00d4ff;
+        }
+        .part-key {
+            font-size: 0.8em;
+            margin-top: 5px;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        /* 右側：控制面板 */
+        .control-panel {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0f3460;
+        }
+        .panel-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .panel-meta {
+            background: #0f3460;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        
+        /* 左右分欄 */
+        .split-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            flex: 1;
+            overflow: hidden;
+        }
+        .split-left, .split-right {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .split-title {
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            text-align: center;
+            padding: 5px;
+            background: #0f3460;
+            border-radius: 5px;
+        }
+        
+        /* 伺服按鈕列表 */
+        .servo-row {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-left: 4px solid;
+            transition: 0.2s;
+        }
+        .servo-row.mv-row {
+            border-left-color: #00d4ff;
+        }
+        .servo-row.hv-row {
+            border-left-color: #ffaa00;
+        }
+        .servo-row.active-dec {
+            background: #ff4444;
+            box-shadow: 0 0 15px #ff4444;
+        }
+        .servo-row.active-inc {
+            background: #00cc66;
+            box-shadow: 0 0 15px #00cc66;
+        }
+        .servo-row.active-home {
+            background: #ffaa00;
+            box-shadow: 0 0 15px #ffaa00;
+        }
+        .servo-info {
+            flex: 2;
+        }
+        .servo-name {
+            font-weight: bold;
+            margin-bottom: 2px;
+            font-size: 0.9em;
+        }
+        .servo-detail {
+            font-size: 0.7em;
+            color: #888;
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .pma-id {
+            background: #00d4ff22;
+            color: #00d4ff;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        .shortkey-badge {
+            background: #00d4ff;
+            color: #1a1a2e;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .home-star {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+        .servo-controls {
+            flex: 1;
+            display: flex;
+            gap: 5px;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        .btn-angle {
+            background: #1a1a2e;
+            color: #00d4ff;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 5px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-angle:hover {
+            background: #00d4ff;
+            color: #1a1a2e;
+        }
+        .angle-input {
+            background: #1a1a2e;
+            color: #00d4ff;
+            border: 1px solid #00d4ff;
+            border-radius: 5px;
+            padding: 4px 6px;
+            font-family: monospace;
+            font-size: 0.9em;
+            width: 70px;
+            text-align: center;
+            outline: none;
+        }
+        .angle-input:focus {
+            border-color: #ffaa00;
+            box-shadow: 0 0 10px #ffaa00;
+        }
+        
+        /* GYRO區域 - 獨立一行在底部 */
+        .gyro-section {
+            margin-top: 20px;
+            background: #16213e;
+            border-radius: 10px;
+            padding: 15px;
+        }
+        .gyro-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .gyro-title {
+            color: #9b59b6;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        .gyro-content {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #9b59b6;
+            line-height: 1.6;
+        }
+        .gyro-row {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        /* LOG區域 */
+        .log-section {
+            margin-top: 20px;
+            background: #16213e;
+            border-radius: 10px;
+            padding: 15px;
+        }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .log-title {
+            color: #00d4ff;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        .log-content {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 12px;
+            height: 120px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            color: #00d4ff;
+        }
+        .log-sent { color: #00d4ff; }
+        .log-received { color: #00cc66; }
+        
+        /* 數字輸入提示 */
+        .input-hint {
+            font-size: 11px;
+            color: #888;
+            margin-top: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 プリメイドAI 25軸控制器 <small>點擊數字可直接輸入</small></h1>
+        
+        <!-- 快捷鍵提示欄 -->
+        <div class="shortcuts-bar">
+            <div class="shortcut-group">
+                <span class="key part">1</span> 頭部
+                <span class="key part">2</span> 手部
+                <span class="key part">3</span> 腳部
+                <span class="key home">4</span> 全部HOME
+                <span class="key home">5</span> 頭部HOME
+                <span class="key home">6</span> 手部HOME
+                <span class="key home">7</span> 腳部HOME
+                <span class="key gyro">8</span> GYRO
+            </div>
+            <div class="shortcut-group">
+                <span style="color:#ffaa00;">✨ 雙鍵HOME: 同時按加減鍵 | 點擊數字可手動輸入</span>
+            </div>
+        </div>
+
+        <!-- 頂部控制列 - 所有按鈕同一行 -->
+        <div class="top-control-bar">
+            <button class="btn" id="connectBtn">🔌 連接</button>
+            <button class="btn btn-danger" id="disconnectBtn" disabled>❌ 斷開</button>
+            <button class="btn btn-warning" id="scanBtn">🔍 掃描</button>
+            <button class="btn btn-success" id="testBtn">📡 測試</button>
+            
+            <div class="separator"></div>
+            
+            <button class="btn btn-home-all" id="homeAllBtn">🏠 全部 (4)</button>
+            <button class="btn btn-home" id="homeHeadBtn">👤 頭部 (5)</button>
+            <button class="btn btn-home" id="homeHandBtn">🖐️ 手部 (6)</button>
+            <button class="btn btn-home" id="homeLegBtn">🦶 腳部 (7)</button>
+            <button class="btn" id="homeCurrentBtn" style="background: #95a5a6;">📌 儲存</button>
+            
+            <div class="separator"></div>
+            
+            <button class="btn btn-gyro" id="gyroBtn">📊 GYRO (8)</button>
+            
+            <div class="status" id="status">⚡ 未連接</div>
+        </div>
+
+        <!-- 主區域 -->
+        <div class="main-area">
+            <!-- 左側：部位選擇 -->
+            <div class="robot-diagram">
+                <div class="robot-title">點選部位 (快捷鍵 1-3)</div>
+                <button class="part-button head active" id="selectHead">
+                    👤 頭部 (3軸)
+                    <div class="part-key">快捷鍵 1</div>
+                </button>
+                <button class="part-button hand" id="selectHand">
+                    🖐️ 手部 (10軸)
+                    <div class="part-key">快捷鍵 2</div>
+                </button>
+                <button class="part-button leg" id="selectLeg">
+                    🦶 腳部 (12軸)
+                    <div class="part-key">快捷鍵 3</div>
+                </button>
+            </div>
+
+            <!-- 右側：控制面板 -->
+            <div class="control-panel" id="controlPanel">
+                <div class="panel-header">
+                    <span class="panel-title" id="panelTitle">👤 頭部控制</span>
+                    <span class="panel-meta" id="panelMeta">快捷鍵會跟隨當前部位</span>
+                </div>
+                <div id="servoContainer"></div>
+            </div>
+        </div>
+
+        <!-- GYRO區域 - 獨立一行 -->
+        <div class="gyro-section">
+            <div class="gyro-header">
+                <div class="gyro-title">📊 陀螺儀數據 (按8更新)</div>
+                <button class="btn" id="clearGyroBtn" style="padding: 5px 15px;">清除</button>
+            </div>
+            <div class="gyro-content" id="gyroContent">
+                等待陀螺儀數據...
+            </div>
+        </div>
+
+        <!-- LOG區域 -->
+        <div class="log-section">
+            <div class="log-header">
+                <div class="log-title">📋 通訊記錄</div>
+                <button class="btn" id="clearLogBtn" style="padding: 5px 15px;">清除</button>
+            </div>
+            <div class="log-content" id="logContent">
+                [系統] 初始化完成<br>
+                [系統] 同時按加減鍵可讓該伺服返回HOME<br>
+                [系統] 點擊數字可直接輸入角度<br>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== 伺服列表 =====
+        const SERVOS = [
+            // ===== 頭部 (3軸) =====
+            { 
+                id: 1, pmaId: '02', name: '頭ピッチ', nameZh: '頭部俯仰',
+                min: 7200, max: 8400, home: 7500, group: 'MV', part: 'head',
+                shortKey: { dec: 'q', inc: 'w' }
+            },
+            { 
+                id: 2, pmaId: '03', name: '頭ヨー', nameZh: '頭部左右',
+                min: 5000, max: 10000, home: 7500, group: 'MV', part: 'head',
+                shortKey: { dec: 'e', inc: 'r' }
+            },
+            { 
+                id: 3, pmaId: '07', name: '頭萌', nameZh: '頭部萌',
+                min: 6900, max: 8100, home: 7500, group: 'MV', part: 'head',
+                shortKey: { dec: 't', inc: 'y' }
+            },
+            
+            // ===== 右手 (5軸) =====
+            { 
+                id: 1, pmaId: '02', name: '肩ピッチR', nameZh: '右肩 pitch (HV)',
+                min: 4300, max: 11500, home: 10200, group: 'HV', part: 'rhand',
+                shortKey: { dec: 'q', inc: 'w' }
+            },
+            { 
+                id: 4, pmaId: '09', name: '肩ロールR', nameZh: '右肩 roll',
+                min: 7450, max: 10350, home: 9800, group: 'MV', part: 'rhand',
+                shortKey: { dec: 'e', inc: 'r' }
+            },
+            { 
+                id: 6, pmaId: '0D', name: '上腕ヨーR', nameZh: '右上臂 yaw',
+                min: 4000, max: 11000, home: 7500, group: 'MV', part: 'rhand',
+                shortKey: { dec: 't', inc: 'y' }
+            },
+            { 
+                id: 8, pmaId: '11', name: '肘ピッチR', nameZh: '右肘 pitch',
+                min: 7100, max: 11000, home: 7500, group: 'MV', part: 'rhand',
+                shortKey: { dec: 'u', inc: 'i' }
+            },
+            { 
+                id: 10, pmaId: '15', name: '手首ヨーR', nameZh: '右手腕 yaw',
+                min: 3500, max: 11500, home: 5000, group: 'MV', part: 'rhand',
+                shortKey: { dec: 'o', inc: 'p' }
+            },
+            
+            // ===== 左手 (5軸) =====
+            { 
+                id: 2, pmaId: '04', name: '肩ピッチL', nameZh: '左肩 pitch (HV)',
+                min: 3500, max: 10700, home: 4700, group: 'HV', part: 'lhand',
+                shortKey: { dec: 'a', inc: 's' }
+            },
+            { 
+                id: 5, pmaId: '0B', name: '肩ロールL', nameZh: '左肩 roll',
+                min: 4550, max: 7550, home: 5200, group: 'MV', part: 'lhand',
+                shortKey: { dec: 'd', inc: 'f' }
+            },
+            { 
+                id: 7, pmaId: '0F', name: '上腕ヨーL', nameZh: '左上臂 yaw',
+                min: 4000, max: 11000, home: 7500, group: 'MV', part: 'lhand',
+                shortKey: { dec: 'g', inc: 'h' }
+            },
+            { 
+                id: 9, pmaId: '13', name: '肘ピッチL', nameZh: '左肘 pitch',
+                min: 4000, max: 7900, home: 7500, group: 'MV', part: 'lhand',
+                shortKey: { dec: 'j', inc: 'k' }
+            },
+            { 
+                id: 11, pmaId: '17', name: '手首ヨーL', nameZh: '左手腕 yaw',
+                min: 3500, max: 11500, home: 10000, group: 'MV', part: 'lhand',
+                shortKey: { dec: 'l', inc: ';' }
+            },
+            
+            // ===== 右腳 (6軸) =====
+            { 
+                id: 3, pmaId: '06', name: 'ヒップヨーR', nameZh: '右髖 yaw',
+                min: 6530, max: 9030, home: 7780, group: 'HV', part: 'rleg',
+                shortKey: { dec: 'q', inc: 'w' }
+            },
+            { 
+                id: 5, pmaId: '0A', name: 'ヒップロールR', nameZh: '右髖 roll',
+                min: 6700, max: 8300, home: 7500, group: 'HV', part: 'rleg',
+                shortKey: { dec: 'e', inc: 'r' }
+            },
+            { 
+                id: 7, pmaId: '0E', name: '腿ピッチR', nameZh: '右大腿 pitch',
+                min: 4700, max: 10200, home: 7500, group: 'HV', part: 'rleg',
+                shortKey: { dec: 't', inc: 'y' }
+            },
+            { 
+                id: 9, pmaId: '12', name: '膝ピッチR', nameZh: '右膝 pitch',
+                min: 3950, max: 7600, home: 7500, group: 'HV', part: 'rleg',
+                shortKey: { dec: 'u', inc: 'i' }
+            },
+            { 
+                id: 11, pmaId: '16', name: '足首ピッチR', nameZh: '右踝 pitch',
+                min: 5700, max: 8300, home: 7500, group: 'HV', part: 'rleg',
+                shortKey: { dec: 'o', inc: 'p' }
+            },
+            { 
+                id: 13, pmaId: '1A', name: '足首ロールR', nameZh: '右踝 roll',
+                min: 6800, max: 9150, home: 7725, group: 'HV', part: 'rleg',
+                shortKey: { dec: '[', inc: ']' }
+            },
+            
+            // ===== 左腳 (6軸) =====
+            { 
+                id: 4, pmaId: '08', name: 'ヒップヨーL', nameZh: '左髖 yaw',
+                min: 6250, max: 8750, home: 7500, group: 'HV', part: 'lleg',
+                shortKey: { dec: 'a', inc: 's' }
+            },
+            { 
+                id: 6, pmaId: '0C', name: 'ヒップロールL', nameZh: '左髖 roll',
+                min: 6700, max: 8300, home: 7500, group: 'HV', part: 'lleg',
+                shortKey: { dec: 'd', inc: 'f' }
+            },
+            { 
+                id: 8, pmaId: '10', name: '腿ピッチL', nameZh: '左大腿 pitch',
+                min: 4700, max: 10200, home: 7500, group: 'HV', part: 'lleg',
+                shortKey: { dec: 'g', inc: 'h' }
+            },
+            { 
+                id: 10, pmaId: '14', name: '膝ピッチL', nameZh: '左膝 pitch',
+                min: 7400, max: 11050, home: 7500, group: 'HV', part: 'lleg',
+                shortKey: { dec: 'j', inc: 'k' }
+            },
+            { 
+                id: 12, pmaId: '18', name: '足首ピッチL', nameZh: '左踝 pitch',
+                min: 6750, max: 9350, home: 7500, group: 'HV', part: 'lleg',
+                shortKey: { dec: 'l', inc: ';' }
+            },
+            { 
+                id: 14, pmaId: '1C', name: '足首ロールL', nameZh: '左踝 roll',
+                min: 6200, max: 8450, home: 7500, group: 'HV', part: 'lleg',
+                shortKey: { dec: '\'', inc: '\\' }
+            }
+        ];
+
+        let currentPart = 'head';
+        let port = null;
+        let reader = null;
+        let currentAngles = {};
+        
+        // 追蹤按下的快捷鍵
+        let pressedKeys = new Set();
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('logContent');
+            const time = new Date().toLocaleTimeString();
+            const className = type === 'sent' ? 'log-sent' : type === 'received' ? 'log-received' : '';
+            log.innerHTML += `<div><span class="${className}">[${time}] ${message}</span></div>`;
+            log.scrollTop = log.scrollHeight;
+            if (log.children.length > 50) log.removeChild(log.firstChild);
+        }
+
+        function addGyroLog(message) {
+            const gyro = document.getElementById('gyroContent');
+            const time = new Date().toLocaleTimeString();
+            gyro.innerHTML += `<div>[${time}] ${message}</div>`;
+            gyro.scrollTop = gyro.scrollHeight;
+            if (gyro.children.length > 8) gyro.removeChild(gyro.firstChild);
+        }
+
+        // ===== 更新面板 =====
+        function updatePanel(part) {
+            currentPart = part;
+            
+            const titles = {
+                head: { title: '👤 頭部控制', meta: '快捷鍵: QW/ER/TY' },
+                hand: { title: '🖐️ 手部控制', meta: '右手:QW/ER/TY/UI/OP  左手:AS/DF/GH/JK/L;' },
+                leg: { title: '🦶 腳部控制', meta: '右腳:QW/ER/TY/UI/OP/[]  左腳:AS/DF/GH/JK/L;/\'' }
+            };
+            
+            document.getElementById('panelTitle').textContent = titles[part].title;
+            document.getElementById('panelMeta').textContent = titles[part].meta;
+            
+            document.querySelectorAll('.part-button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`select${part.charAt(0).toUpperCase() + part.slice(1)}`).classList.add('active');
+            
+            let html = '';
+            
+            if (part === 'head') {
+                const servos = SERVOS.filter(s => s.part === 'head');
+                html = '<div style="overflow-y: auto; height: 100%;">';
+                servos.forEach(servo => {
+                    html += createServoRow(servo);
+                });
+                html += '</div>';
+            } else if (part === 'hand') {
+                const rightHand = SERVOS.filter(s => s.part === 'rhand');
+                const leftHand = SERVOS.filter(s => s.part === 'lhand');
+                
+                html = '<div class="split-panel">';
+                html += '<div class="split-left"><div class="split-title">👉 右手 (QW/ER/TY/UI/OP)</div>';
+                rightHand.forEach(servo => {
+                    html += createServoRow(servo);
+                });
+                html += '</div>';
+                html += '<div class="split-right"><div class="split-title">👈 左手 (AS/DF/GH/JK/L;)</div>';
+                leftHand.forEach(servo => {
+                    html += createServoRow(servo);
+                });
+                html += '</div></div>';
+            } else if (part === 'leg') {
+                const rightLeg = SERVOS.filter(s => s.part === 'rleg');
+                const leftLeg = SERVOS.filter(s => s.part === 'lleg');
+                
+                html = '<div class="split-panel">';
+                html += '<div class="split-left"><div class="split-title">🦶 右腳 (QW/ER/TY/UI/OP/[])</div>';
+                rightLeg.forEach(servo => {
+                    html += createServoRow(servo);
+                });
+                html += '</div>';
+                html += '<div class="split-right"><div class="split-title">🦶 左腳 (AS/DF/GH/JK/L;/\')</div>';
+                leftLeg.forEach(servo => {
+                    html += createServoRow(servo);
+                });
+                html += '</div></div>';
+            }
+            
+            document.getElementById('servoContainer').innerHTML = html;
+            
+            // 為所有數字輸入框添加事件
+            document.querySelectorAll('.angle-input').forEach(input => {
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        input.blur();
+                    }
+                });
+                
+                input.addEventListener('blur', (e) => {
+                    const group = input.dataset.group;
+                    const id = parseInt(input.dataset.id);
+                    const newAngle = parseInt(input.value);
+                    
+                    if (!isNaN(newAngle)) {
+                        sendExactAngle(group, id, newAngle);
+                    } else {
+                        // 如果輸入無效，恢復原值
+                        const servo = SERVOS.find(s => s.group === group && s.id === id);
+                        if (servo) {
+                            input.value = currentAngles[`${group}_${id}`] || servo.home;
+                        }
+                    }
+                });
+            });
+        }
+
+        function createServoRow(servo) {
+            const isSpecial = servo.home !== 7500;
+            const savedAngle = currentAngles[`${servo.group}_${servo.id}`] || servo.home;
+            
+            // 處理特殊字符顯示
+            const displayDec = servo.shortKey.dec === '\'' ? '\'' : servo.shortKey.dec;
+            const displayInc = servo.shortKey.inc === '\\' ? '\\' : servo.shortKey.inc;
+            
+            return `
+                <div class="servo-row ${servo.group.toLowerCase()}-row" id="row_${servo.group}_${servo.id}">
+                    <div class="servo-info">
+                        <div class="servo-name">${servo.nameZh}</div>
+                        <div class="servo-detail">
+                            <span class="pma-id">PMA ${servo.pmaId}</span>
+                            <span>${servo.group} ID:${servo.id}</span>
+                            ${isSpecial ? '<span class="home-star">★</span>' : ''}
+                            <span class="shortkey-badge">${displayDec}- / ${displayInc}+</span>
+                        </div>
+                    </div>
+                    <div class="servo-controls">
+                        <button class="btn-angle" onclick="sendAngle('${servo.group}', ${servo.id}, -50)">−</button>
+                        <input type="text" class="angle-input" id="input_${servo.group}_${servo.id}" 
+                               value="${savedAngle}" data-group="${servo.group}" data-id="${servo.id}">
+                        <button class="btn-angle" onclick="sendAngle('${servo.group}', ${servo.id}, 50)">+</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ===== 發送角度指令 =====
+        async function sendAngle(group, id, delta) {
+            if (!port) {
+                addLog('❌ 未連接機械人', 'error');
+                alert('請先連接機械人');
+                return;
+            }
+            
+            const servo = SERVOS.find(s => s.group === group && s.id === id);
+            if (!servo) return;
+            
+            const input = document.getElementById(`input_${group}_${id}`);
+            let current = parseInt(input.value);
+            let newAngle = current + delta;
+            
+            if (newAngle < servo.min) newAngle = servo.min;
+            if (newAngle > servo.max) newAngle = servo.max;
+            
+            if (newAngle !== current) {
+                input.value = newAngle;
+                currentAngles[`${group}_${id}`] = newAngle;
+                
+                const cmd = `S ${group} ${id} ${newAngle}\n`;
+                
+                try {
+                    addLog(`📤 ${cmd.trim()}`, 'sent');
+                    
+                    const writer = port.writable.getWriter();
+                    await writer.write(new TextEncoder().encode(cmd));
+                    writer.releaseLock();
+                    
+                    const row = document.getElementById(`row_${group}_${id}`);
+                    if (row) {
+                        row.classList.add(delta < 0 ? 'active-dec' : 'active-inc');
+                        setTimeout(() => {
+                            row.classList.remove('active-dec', 'active-inc');
+                        }, 300);
+                    }
+                    
+                } catch (error) {
+                    addLog(`❌ 發送失敗: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // ===== 發送指定角度 =====
+        async function sendExactAngle(group, id, newAngle) {
+            if (!port) {
+                addLog('❌ 未連接機械人', 'error');
+                alert('請先連接機械人');
+                return;
+            }
+            
+            const servo = SERVOS.find(s => s.group === group && s.id === id);
+            if (!servo) return;
+            
+            // 檢查範圍
+            if (newAngle < servo.min) newAngle = servo.min;
+            if (newAngle > servo.max) newAngle = servo.max;
+            
+            const input = document.getElementById(`input_${group}_${id}`);
+            input.value = newAngle;
+            currentAngles[`${group}_${id}`] = newAngle;
+            
+            const cmd = `S ${group} ${id} ${newAngle}\n`;
+            
+            try {
+                addLog(`📤 ${cmd.trim()}`, 'sent');
+                
+                const writer = port.writable.getWriter();
+                await writer.write(new TextEncoder().encode(cmd));
+                writer.releaseLock();
+                
+                const row = document.getElementById(`row_${group}_${id}`);
+                if (row) {
+                    row.classList.add('active-home');
+                    setTimeout(() => {
+                        row.classList.remove('active-home');
+                    }, 300);
+                }
+                
+            } catch (error) {
+                addLog(`❌ 發送失敗: ${error.message}`, 'error');
+            }
+        }
+
+        // ===== 發送HOME指令 =====
+        async function sendHome(group, id) {
+            if (!port) {
+                addLog('❌ 未連接機械人', 'error');
+                return;
+            }
+            
+            const servo = SERVOS.find(s => s.group === group && s.id === id);
+            if (!servo) return;
+            
+            const input = document.getElementById(`input_${group}_${id}`);
+            input.value = servo.home;
+            currentAngles[`${group}_${id}`] = servo.home;
+            
+            const cmd = `S ${group} ${id} ${servo.home}\n`;
+            
+            try {
+                addLog(`🏠 HOME ${group} ID ${id} = ${servo.home}`, 'sent');
+                
+                const writer = port.writable.getWriter();
+                await writer.write(new TextEncoder().encode(cmd));
+                writer.releaseLock();
+                
+                const row = document.getElementById(`row_${group}_${id}`);
+                if (row) {
+                    row.classList.add('active-home');
+                    setTimeout(() => {
+                        row.classList.remove('active-home');
+                    }, 500);
+                }
+                
+            } catch (error) {
+                addLog(`❌ 發送失敗: ${error.message}`, 'error');
+            }
+        }
+
+        // ===== 快捷鍵處理 =====
+        function handleShortcut(key) {
+            // 部位切換
+            if (key === '1') { updatePanel('head'); return true; }
+            if (key === '2') { updatePanel('hand'); return true; }
+            if (key === '3') { updatePanel('leg'); return true; }
+            
+            // HOME快捷鍵
+            if (key === '4') { goHomeAll(); return true; }
+            if (key === '5') { goHomeHead(); return true; }
+            if (key === '6') { goHomeHand(); return true; }
+            if (key === '7') { goHomeLeg(); return true; }
+            
+            // GYRO
+            if (key === '8') { queryGyro(); return true; }
+            
+            return false;
+        }
+
+        // ===== 尋找對應的伺服 =====
+        function findServoByKey(key) {
+            const servos = SERVOS.filter(s => s.part === currentPart || 
+                (currentPart === 'hand' && (s.part === 'rhand' || s.part === 'lhand')) ||
+                (currentPart === 'leg' && (s.part === 'rleg' || s.part === 'lleg')));
+            
+            return servos.find(s => s.shortKey.dec === key || s.shortKey.inc === key);
+        }
+
+        // ===== HOME功能 =====
+        async function goHomeAll() {
+            addLog('🏠 全部HOME', 'sent');
+            for (let servo of SERVOS) {
+                const input = document.getElementById(`input_${servo.group}_${servo.id}`);
+                if (input) {
+                    input.value = servo.home;
+                    currentAngles[`${servo.group}_${servo.id}`] = servo.home;
+                }
+                if (port) {
+                    const cmd = `S ${servo.group} ${servo.id} ${servo.home}\n`;
+                    try {
+                        const writer = port.writable.getWriter();
+                        await writer.write(new TextEncoder().encode(cmd));
+                        writer.releaseLock();
+                        await delay(10);
+                    } catch (error) {
+                        addLog(`❌ 發送失敗: ${error.message}`, 'error');
+                    }
+                }
+            }
+        }
+
+        async function goHomeHead() {
+            addLog('👤 頭部HOME', 'sent');
+            const headServos = SERVOS.filter(s => s.part === 'head');
+            for (let servo of headServos) {
+                const input = document.getElementById(`input_${servo.group}_${servo.id}`);
+                if (input) {
+                    input.value = servo.home;
+                    currentAngles[`${servo.group}_${servo.id}`] = servo.home;
+                }
+                if (port) {
+                    const cmd = `S ${servo.group} ${servo.id} ${servo.home}\n`;
+                    try {
+                        const writer = port.writable.getWriter();
+                        await writer.write(new TextEncoder().encode(cmd));
+                        writer.releaseLock();
+                        await delay(10);
+                    } catch (error) {
+                        addLog(`❌ 發送失敗: ${error.message}`, 'error');
+                    }
+                }
+            }
+        }
+
+        async function goHomeHand() {
+            addLog('🖐️ 手部HOME', 'sent');
+            const handServos = SERVOS.filter(s => s.part === 'rhand' || s.part === 'lhand');
+            for (let servo of handServos) {
+                const input = document.getElementById(`input_${servo.group}_${servo.id}`);
+                if (input) {
+                    input.value = servo.home;
+                    currentAngles[`${servo.group}_${servo.id}`] = servo.home;
+                }
+                if (port) {
+                    const cmd = `S ${servo.group} ${servo.id} ${servo.home}\n`;
+                    try {
+                        const writer = port.writable.getWriter();
+                        await writer.write(new TextEncoder().encode(cmd));
+                        writer.releaseLock();
+                        await delay(10);
+                    } catch (error) {
+                        addLog(`❌ 發送失敗: ${error.message}`, 'error');
+                    }
+                }
+            }
+        }
+
+        async function goHomeLeg() {
+            addLog('🦶 腳部HOME', 'sent');
+            const legServos = SERVOS.filter(s => s.part === 'rleg' || s.part === 'lleg');
+            for (let servo of legServos) {
+                const input = document.getElementById(`input_${servo.group}_${servo.id}`);
+                if (input) {
+                    input.value = servo.home;
+                    currentAngles[`${servo.group}_${servo.id}`] = servo.home;
+                }
+                if (port) {
+                    const cmd = `S ${servo.group} ${servo.id} ${servo.home}\n`;
+                    try {
+                        const writer = port.writable.getWriter();
+                        await writer.write(new TextEncoder().encode(cmd));
+                        writer.releaseLock();
+                        await delay(10);
+                    } catch (error) {
+                        addLog(`❌ 發送失敗: ${error.message}`, 'error');
+                    }
+                }
+            }
+        }
+
+        function saveCurrentAsHome() {
+            addLog('📌 儲存HOME位置', 'sent');
+            for (let servo of SERVOS) {
+                const input = document.getElementById(`input_${servo.group}_${servo.id}`);
+                if (input) {
+                    servo.home = parseInt(input.value);
+                }
+            }
+            alert('HOME位置已儲存！');
+        }
+
+        async function queryGyro() {
+            if (!port) {
+                alert('請先連接機械人');
+                return;
+            }
+            addLog('📊 查詢陀螺儀', 'sent');
+            addGyroLog('📊 查詢陀螺儀...');
+            await sendCommand('G');
+        }
+
+        async function testConnection() {
+            if (!port) {
+                alert('請先連接機械人');
+                return;
+            }
+            addLog('📡 測試連接', 'sent');
+            await sendAngle('MV', 1, 0);
+        }
+
+        async function sendCommand(cmd) {
+            if (!port) return;
+            try {
+                const writer = port.writable.getWriter();
+                await writer.write(new TextEncoder().encode(cmd + '\n'));
+                writer.releaseLock();
+            } catch (error) {
+                addLog(`❌ 發送失敗: ${error.message}`, 'error');
+            }
+        }
+
+        // ===== 鍵盤事件 =====
+        document.addEventListener('keydown', (e) => {
+            const key = e.key;
+            
+            // 如果焦點在輸入框，不處理快捷鍵
+            if (document.activeElement.classList.contains('angle-input')) {
+                return;
+            }
+            
+            // 忽略功能鍵
+            if (key === 'Control' || key === 'Alt' || key === 'Shift' || key === 'Meta') {
+                return;
+            }
+            
+            // 處理功能快捷鍵
+            if (handleShortcut(key)) {
+                e.preventDefault();
+                return;
+            }
+            
+            // 記錄按下的鍵
+            pressedKeys.add(key);
+            
+            // 尋找對應的伺服
+            const servo = findServoByKey(key);
+            if (servo) {
+                // 檢查是否同時按了加減鍵
+                const otherKey = key === servo.shortKey.dec ? servo.shortKey.inc : servo.shortKey.dec;
+                if (pressedKeys.has(otherKey)) {
+                    // 同時按了加減鍵，返回HOME
+                    e.preventDefault();
+                    sendHome(servo.group, servo.id);
+                } else {
+                    // 單鍵，加減角度
+                    e.preventDefault();
+                    const delta = key === servo.shortKey.dec ? -50 : 50;
+                    sendAngle(servo.group, servo.id, delta);
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const key = e.key;
+            pressedKeys.delete(key);
+        });
+
+        // 視窗失去焦點時清除所有按鍵記錄
+        window.addEventListener('blur', () => {
+            pressedKeys.clear();
+        });
+
+        async function connectSerial() {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+                
+                document.getElementById('status').innerHTML = '✅ 已連接';
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                
+                addLog('✅ 連接成功', 'received');
+                readLoop();
+                
+            } catch (error) {
+                addLog(`❌ 連接失敗: ${error.message}`, 'error');
+            }
+        }
+
+        async function disconnectSerial() {
+            if (reader) {
+                try { await reader.cancel(); } catch (e) {}
+                reader = null;
+            }
+            if (port) {
+                try { await port.close(); } catch (e) {}
+                port = null;
+            }
+            document.getElementById('status').innerHTML = '⚡ 未連接';
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            addLog('🔌 已斷開連接', 'received');
+        }
+
+        async function readLoop() {
+            if (!port) return;
+            
+            try {
+                reader = port.readable.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    
+                    if (value) {
+                        buffer += decoder.decode(value);
+                        let lines = buffer.split('\n');
+                        buffer = lines.pop();
+                        
+                        for (const line of lines) {
+                            if (line.trim()) {
+                                addLog(`📥 ${line.trim()}`, 'received');
+                                
+                                if (line.includes('加速度') || line.includes('陀螺儀') || line.includes('溫度')) {
+                                    addGyroLog(line.trim());
+                                }
+                                
+                                parseResponse(line);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                addLog(`❌ 讀取錯誤: ${error.message}`, 'error');
+            } finally {
+                if (reader) {
+                    reader.releaseLock();
+                    reader = null;
+                }
+            }
+        }
+
+        function parseResponse(line) {
+            const match = line.match(/(MV|HV) ID (\d+).*?(\d+)/);
+            if (match) {
+                const group = match[1];
+                const id = parseInt(match[2]);
+                const angle = parseInt(match[3]);
+                
+                const input = document.getElementById(`input_${group}_${id}`);
+                if (input && Math.abs(parseInt(input.value) - angle) > 5) {
+                    input.value = angle;
+                    currentAngles[`${group}_${id}`] = angle;
+                }
+            }
+        }
+
+        async function scanServos() {
+            if (!port) {
+                alert('請先連接機械人');
+                return;
+            }
+            addLog('🔍 開始掃描...', 'sent');
+            
+            for (let i = 1; i <= 11; i++) {
+                await sendCommand(`? MV ${i}`);
+                await delay(30);
+            }
+            
+            for (let i = 1; i <= 14; i++) {
+                await sendCommand(`? HV ${i}`);
+                await delay(30);
+            }
+            
+            addLog('✅ 掃描完成', 'received');
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        window.onload = () => {
+            updatePanel('head');
+            
+            document.getElementById('selectHead').onclick = () => updatePanel('head');
+            document.getElementById('selectHand').onclick = () => updatePanel('hand');
+            document.getElementById('selectLeg').onclick = () => updatePanel('leg');
+            
+            document.getElementById('connectBtn').onclick = connectSerial;
+            document.getElementById('disconnectBtn').onclick = disconnectSerial;
+            document.getElementById('scanBtn').onclick = scanServos;
+            document.getElementById('testBtn').onclick = testConnection;
+            document.getElementById('gyroBtn').onclick = queryGyro;
+            
+            document.getElementById('homeAllBtn').onclick = goHomeAll;
+            document.getElementById('homeHeadBtn').onclick = goHomeHead;
+            document.getElementById('homeHandBtn').onclick = goHomeHand;
+            document.getElementById('homeLegBtn').onclick = goHomeLeg;
+            document.getElementById('homeCurrentBtn').onclick = saveCurrentAsHome;
+            
+            document.getElementById('clearLogBtn').onclick = () => {
+                document.getElementById('logContent').innerHTML = '<div>[系統] LOG已清除</div>';
+            };
+            
+            document.getElementById('clearGyroBtn').onclick = () => {
+                document.getElementById('gyroContent').innerHTML = '等待陀螺儀數據...';
+            };
+            
+            addLog('✅ 系統初始化完成', 'received');
+            addLog('✨ 點擊數字可直接輸入角度', 'received');
+        };
+    </script>
+</body>
+</html>
