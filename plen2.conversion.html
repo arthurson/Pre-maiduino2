@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PLEN2 → Premaiduino 動作轉換器</title>
+    <title>PLEN2 → Premaiduino 動作轉換器 (自動限幅＋反轉預設)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -46,6 +46,73 @@
             opacity: 0.9;
         }
         
+        /* 串口控制置頂 */
+        .serial-top {
+            background: #f0f3ff;
+            padding: 20px 30px;
+            border-bottom: 3px solid #6B73FF;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .serial-label {
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .serial-input-group {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+        }
+        
+        .serial-baud-rate {
+            width: 120px;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .serial-status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        .serial-connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .serial-disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .serial-log-container {
+            flex: 2;
+            max-width: 500px;
+        }
+        
+        .serial-log {
+            background: #1e1e3f;
+            color: #d4d4d4;
+            padding: 10px;
+            border-radius: 8px;
+            height: 120px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
         .main-content {
             display: flex;
             flex-wrap: wrap;
@@ -79,15 +146,7 @@
             margin-bottom: 30px;
         }
         
-        .reverse-settings {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-        
-        .test-section {
+        .servo-settings {
             background: #f8f9fa;
             border-radius: 15px;
             padding: 25px;
@@ -334,50 +393,30 @@
             background: #f0f3ff;
         }
         
+        .home-input {
+            width: 70px;
+            padding: 4px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            text-align: right;
+        }
+        
+        .range-display {
+            font-size: 11px;
+            color: #6c757d;
+        }
+        
         .reverse-checkbox {
             width: 18px;
             height: 18px;
             cursor: pointer;
         }
         
-        .test-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }
-        
-        .test-card {
-            background: white;
-            border-radius: 8px;
-            padding: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .test-card .label {
+        .clamp-indicator {
+            color: #ff9800;
+            font-weight: bold;
             font-size: 12px;
-            color: #6B73FF;
-            font-weight: bold;
-        }
-        
-        .test-card .value {
-            font-size: 20px;
-            font-weight: bold;
-            margin: 5px 0;
-        }
-        
-        .test-card .home {
-            font-size: 11px;
-            color: #888;
-        }
-        
-        .test-card .range {
-            font-size: 11px;
-            color: #888;
-        }
-        
-        .test-card.warning {
-            border-left: 4px solid #ff4444;
+            margin-left: 5px;
         }
         
         .batch-preview {
@@ -456,84 +495,6 @@
             margin: 0;
         }
         
-        .serial-section {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        
-        .serial-input-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .serial-input {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-            font-size: 14px;
-            font-family: monospace;
-        }
-        
-        .serial-input:focus {
-            border-color: #6B73FF;
-            outline: none;
-        }
-        
-        .serial-baud-rate {
-            width: 120px;
-            padding: 12px;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        
-        .serial-status {
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-            font-size: 14px;
-        }
-        
-        .serial-connected {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .serial-disconnected {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .serial-log {
-            background: #1e1e3f;
-            color: #d4d4d4;
-            padding: 15px;
-            border-radius: 8px;
-            height: 200px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 12px;
-            margin-top: 15px;
-        }
-        
-        .log-controls {
-            display: flex;
-            gap: 10px;
-            margin: 10px 0;
-            justify-content: flex-end;
-        }
-        
-        .log-controls button {
-            padding: 5px 10px;
-            font-size: 12px;
-        }
-        
         .frame-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
@@ -594,13 +555,6 @@
             margin-top: 5px;
         }
         
-        .changed-indicator {
-            color: #dc3545;
-            font-weight: bold;
-            font-size: 12px;
-            margin-left: 10px;
-        }
-        
         .formula-box {
             background: #f0f3ff;
             border-radius: 10px;
@@ -639,6 +593,15 @@
             background: #f0f3ff;
         }
         
+        .clamp-badge {
+            background: #ff9800;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+        
         footer {
             text-align: center;
             padding: 20px;
@@ -652,7 +615,34 @@
     <div class="container">
         <div class="header">
             <h1>🤖 PLEN2 → Premaiduino 動作轉換器</h1>
-            <p>只傳有郁嘅伺服｜比例 2.96｜跨Frame比對｜速度可調 0.1-1.5x｜Batch Send</p>
+            <p>獨立 Home Point｜獨立反轉｜比例 2.96｜自動限幅｜MV8取代MV10｜MV9取代MV11｜預設速度 0.3x</p>
+        </div>
+        
+        <!-- 串口控制置頂 -->
+        <div class="serial-top">
+            <span class="serial-label">🔌 串口控制</span>
+            <div class="serial-input-group">
+                <select id="baudRate" class="serial-baud-rate">
+                    <option value="9600">9600</option>
+                    <option value="19200">19200</option>
+                    <option value="38400">38400</option>
+                    <option value="57600">57600</option>
+                    <option value="115200" selected>115200</option>
+                    <option value="250000">250000</option>
+                    <option value="500000">500000</option>
+                    <option value="1000000">1000000</option>
+                </select>
+                <button class="btn btn-success" id="connectSerial">🔌 連接</button>
+                <button class="btn btn-danger" id="disconnectSerial" disabled>❌ 斷開</button>
+            </div>
+            <div id="serialStatus" class="serial-status serial-disconnected">
+                🔴 未連接
+            </div>
+            <div class="serial-log-container">
+                <div class="serial-log" id="serialLog">
+                    📋 串口日誌...
+                </div>
+            </div>
         </div>
         
         <div class="main-content">
@@ -693,6 +683,7 @@
                     <div class="formula-box">
                         <strong>📐 固定比例 2.96</strong><br>
                         <code>Premaiduino = HomePoint + (PLEN2 × 2.96)</code><br>
+                        <code>超出範圍會自動限幅至 min/max</code><br>
                         <code>MV8取代MV10｜MV9取代MV11</code><br>
                         <code>JSON 0 = 你 calibrate 嘅 home point</code>
                     </div>
@@ -704,12 +695,12 @@
                     <div class="speed-slider-container">
                         <div class="speed-label">
                             <span>速度倍率</span>
-                            <span id="speedMultiplierDisplay" class="speed-value">0.25x</span>
+                            <span id="speedMultiplierDisplay" class="speed-value">0.30x</span>
                         </div>
-                        <input type="range" id="speedMultiplier" min="0.1" max="1.5" step="0.05" value="0.25">
+                        <input type="range" id="speedMultiplier" min="0.1" max="1.5" step="0.05" value="0.30">
                         <div style="display: flex; justify-content: space-between; color: #888; margin-top: 5px;">
                             <span>0.1x (最慢)</span>
-                            <span>0.25x (預設)</span>
+                            <span>0.3x (預設)</span>
                             <span>0.5x</span>
                             <span>1.0x (正常)</span>
                             <span>1.5x (最快)</span>
@@ -718,21 +709,21 @@
                     
                     <div class="speed-presets">
                         <button class="speed-preset-btn" id="speedMinBtn">🐢 0.1x</button>
-                        <button class="speed-preset-btn" id="speedQuarterBtn">🐢 0.25x (預設)</button>
+                        <button class="speed-preset-btn" id="speedQuarterBtn">⚡ 0.3x (預設)</button>
                         <button class="speed-preset-btn" id="speedHalfBtn">🐢 0.5x</button>
                         <button class="speed-preset-btn" id="speedNormalBtn">⚡ 1.0x (正常)</button>
                         <button class="speed-preset-btn" id="speedMaxBtn">🚀 1.5x</button>
                     </div>
-                    <p style="font-size: 12px; color: #00cc66; margin-top: 5px;">✅ 載入JSON後自動套用0.25x</p>
+                    <p style="font-size: 12px; color: #00cc66; margin-top: 5px;">✅ 載入JSON後自動套用0.3x</p>
                 </div>
                 
-                <div class="reverse-settings">
+                <div class="servo-settings">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h3 style="color: #495057;">🔄 反轉設定</h3>
+                        <h3 style="color: #495057;">🛠️ 伺服設定</h3>
                         <button class="btn btn-info" id="renewBtn" disabled>🔄 更新轉換</button>
                     </div>
                     <p style="font-size: 13px; color: #6c757d; margin-bottom: 15px;">
-                        打勾表示該伺服需要反轉，按 <strong>更新轉換</strong> 重新計算
+                        每個伺服可以獨立設定 Home Point 同反轉，按 <strong>更新轉換</strong> 重新計算
                         <span id="changedIndicator" class="changed-indicator" style="display: none;">⚡ 已更改</span>
                     </p>
                     <div style="max-height: 350px; overflow-y: auto;">
@@ -742,19 +733,13 @@
                                     <th>群組</th>
                                     <th>ID</th>
                                     <th>中文名稱</th>
-                                    <th>Home</th>
+                                    <th>Home Point</th>
+                                    <th>範圍</th>
                                     <th>反轉</th>
                                 </tr>
                             </thead>
-                            <tbody id="reverseTableBody"></tbody>
+                            <tbody id="servoTableBody"></tbody>
                         </table>
-                    </div>
-                </div>
-                
-                <div class="test-section">
-                    <h3 style="margin-bottom: 15px; color: #495057;">📊 即時計算測試</h3>
-                    <div id="testGrid" class="test-grid">
-                        <!-- 由 JS 動態生成 -->
                     </div>
                 </div>
             </div>
@@ -813,7 +798,7 @@
                         <div class="tab-pane" id="commands-pane">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                                 <h3 style="color: #495057;">📟 所有Frame指令</h3>
-                                <button class="copy-btn" id="copyAllBtn">📋 複製全部</button>
+                                <button class="btn btn-secondary" id="copyAllBtn">📋 複製全部</button>
                             </div>
                             <pre class="code-block" id="allCommandsOutput">// 上傳 JSON 後會顯示所有指令</pre>
                         </div>
@@ -825,86 +810,49 @@
                     </div>
                 </div>
                 
-                <div class="serial-section">
-                    <h3 style="margin-bottom: 15px; color: #495057;">🔌 串口控制</h3>
-                    
-                    <div class="serial-input-group">
-                        <select id="baudRate" class="serial-baud-rate">
-                            <option value="9600">9600</option>
-                            <option value="19200">19200</option>
-                            <option value="38400">38400</option>
-                            <option value="57600">57600</option>
-                            <option value="115200" selected>115200</option>
-                            <option value="250000">250000</option>
-                            <option value="500000">500000</option>
-                            <option value="1000000">1000000</option>
-                        </select>
-                        <button class="btn btn-success" id="connectSerial">🔌 連接</button>
-                        <button class="btn btn-danger" id="disconnectSerial" disabled>❌ 斷開</button>
-                    </div>
-                    
-                    <div id="serialStatus" class="serial-status serial-disconnected">
-                        🔴 未連接
-                    </div>
-                    
-                    <div class="log-controls">
-                        <button class="btn btn-secondary" id="saveLogBtn">💾 儲存日誌</button>
-                        <button class="btn btn-secondary" id="clearLogBtn">🗑️ 清除日誌</button>
-                    </div>
-                    
-                    <div class="serial-log" id="serialLog">
-                        📋 串口日誌...
-                    </div>
-                    
-                    <div class="serial-input-group" style="margin-top: 15px;">
-                        <input type="text" id="customCommand" class="serial-input" placeholder="輸入自訂指令" disabled>
-                        <button class="btn btn-primary" id="sendCustomBtn" disabled>📤 發送</button>
-                    </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <input type="text" id="customCommand" class="serial-input" placeholder="輸入自訂指令" disabled>
+                    <button class="btn btn-primary" id="sendCustomBtn" disabled>📤 發送</button>
                 </div>
             </div>
         </div>
         
         <footer>
-            <p>✅ 只傳有郁嘅伺服｜JSON 0 = 你 calibrate 嘅 home point｜比例 2.96｜速度 0.1-1.5x｜預設 0.25x｜一入JSON自動套用</p>
+            <p>✅ 只傳有郁嘅伺服｜JSON 0 = 你 calibrate 嘅 home point｜比例 2.96｜速度 0.1-1.5x｜預設 0.3x｜自動限幅｜HV5/6/11/12預設反轉</p>
         </footer>
     </div>
     
     <script>
-        // ===== Premaiduino 25 個伺服 Home Point (你 calibrate 嘅數) =====
-        const ALL_HOME_POINTS = {
-            // HV群 (14個)
-            'HV1': 10200, 'HV2': 4700, 'HV3': 7780, 'HV4': 7500,
-            'HV5': 7400, 'HV6': 7600, 'HV7': 7500, 'HV8': 7500,
-            'HV9': 7500, 'HV10': 7500, 'HV11': 7500, 'HV12': 7550,
-            'HV13': 7825, 'HV14': 7450,
+        // ===== Premaiduino 25 個伺服 Home Point, 範圍 同反轉設定 =====
+        let SERVO_CONFIG = {
+            // MV群 (11個) - 全部唔反轉
+            'MV1': { home: 7500, min: 7200, max: 8400, reverse: false },
+            'MV2': { home: 7500, min: 5000, max: 10000, reverse: false },
+            'MV3': { home: 7500, min: 6900, max: 8100, reverse: false },
+            'MV4': { home: 9800, min: 7450, max: 10350, reverse: false },
+            'MV5': { home: 5200, min: 4550, max: 7550, reverse: false },
+            'MV6': { home: 7500, min: 4000, max: 11000, reverse: false },
+            'MV7': { home: 7500, min: 4000, max: 11000, reverse: false },
+            'MV8': { home: 7500, min: 7100, max: 11000, reverse: false },
+            'MV9': { home: 7500, min: 4000, max: 7900, reverse: false },
+            'MV10': { home: 5000, min: 3500, max: 11500, reverse: false },
+            'MV11': { home: 10000, min: 3500, max: 11500, reverse: false },
             
-            // MV群 (11個)
-            'MV1': 7500, 'MV2': 7500, 'MV3': 7500, 'MV4': 9800,
-            'MV5': 5200, 'MV6': 7500, 'MV7': 7500, 'MV8': 7500,
-            'MV9': 7500, 'MV10': 5000, 'MV11': 10000
-        };
-        
-        // ===== 範圍限制 =====
-        const RANGES = {
-            'HV1': {min:4300, max:11500}, 'HV2': {min:3500, max:10700},
-            'HV3': {min:6530, max:9030}, 'HV4': {min:6250, max:8750},
-            'HV5': {min:6700, max:8300}, 'HV6': {min:6700, max:8300},
-            'HV7': {min:4700, max:10200}, 'HV8': {min:4700, max:10200},
-            'HV9': {min:3950, max:7600}, 'HV10': {min:7400, max:11050},
-            'HV11': {min:5700, max:8300}, 'HV12': {min:6750, max:9350},
-            'HV13': {min:6800, max:9150}, 'HV14': {min:6200, max:8450},
-            'MV4': {min:7450, max:10350}, 'MV5': {min:4550, max:7550},
-            'MV8': {min:7100, max:11000}, 'MV9': {min:4000, max:7900}
-        };
-        
-        // ===== 反轉設定 (最新版) =====
-        let reverseSettings = {
-            'HV5': true, 'HV6': true,     // 髋部側抬 反轉
-            'HV11': false, 'HV12': false,  // 腳踝前後 正常
-            'HV13': false, 'HV14': false,  // 腳踝側傾 正常
-            'HV3': false, 'HV4': false,    // 髋部旋轉 正常
-            'HV7': false, 'HV8': false,    // 大腿前後 待測試 (預設正常)
-            'HV9': false, 'HV10': false     // 膝蓋 待測試 (預設正常)
+            // HV群 (14個)
+            'HV1': { home: 10200, min: 4300, max: 11500, reverse: false },
+            'HV2': { home: 4700, min: 3500, max: 10700, reverse: false },
+            'HV3': { home: 7780, min: 6530, max: 9030, reverse: false },
+            'HV4': { home: 7500, min: 6250, max: 8750, reverse: false },
+            'HV5': { home: 7400, min: 6700, max: 8300, reverse: true },   // ✅ 反轉
+            'HV6': { home: 7600, min: 6700, max: 8300, reverse: true },   // ✅ 反轉
+            'HV7': { home: 7500, min: 4700, max: 10200, reverse: false },
+            'HV8': { home: 7500, min: 4700, max: 10200, reverse: false },
+            'HV9': { home: 7500, min: 3950, max: 7600, reverse: false },
+            'HV10': { home: 7500, min: 7400, max: 11050, reverse: false },
+            'HV11': { home: 7500, min: 5700, max: 8300, reverse: true },  // ✅ 反轉
+            'HV12': { home: 7550, min: 6750, max: 9350, reverse: true },  // ✅ 反轉
+            'HV13': { home: 7825, min: 6800, max: 9150, reverse: false },
+            'HV14': { home: 7450, min: 6200, max: 8450, reverse: false }
         };
         
         // ===== PLEN2 名稱對應 (MV8取代MV10, MV9取代MV11) =====
@@ -941,9 +889,10 @@
         let reader = null;
         let writer = null;
         let isPlaying = false;
-        let currentSpeedMultiplier = 0.25;
+        let currentSpeedMultiplier = 0.30;
         let servoMoveCount = {};
         let changesMade = false;
+        let clampLog = [];  // 記錄限幅情況
         
         // ===== DOM 元素 =====
         const uploadArea = document.getElementById('uploadArea');
@@ -955,10 +904,8 @@
         const convertBtn = document.getElementById('convertBtn');
         const clearBtn = document.getElementById('clearBtn');
         const renewBtn = document.getElementById('renewBtn');
-        const reverseTableBody = document.getElementById('reverseTableBody');
-        const lastUpdated = document.getElementById('lastUpdated');
+        const servoTableBody = document.getElementById('servoTableBody');
         const changedIndicator = document.getElementById('changedIndicator');
-        const testGrid = document.getElementById('testGrid');
         
         // 速度控制
         const speedMultiplier = document.getElementById('speedMultiplier');
@@ -997,20 +944,18 @@
         const customCommand = document.getElementById('customCommand');
         const sendCustomBtn = document.getElementById('sendCustomBtn');
         const serialLog = document.getElementById('serialLog');
-        const saveLogBtn = document.getElementById('saveLogBtn');
-        const clearLogBtn = document.getElementById('clearLogBtn');
         const baudRate = document.getElementById('baudRate');
         
         // ===== 初始化 =====
         function init() {
-            renderReverseTable();
-            renderTestGrid();
+            renderServoTable();
             setupEventListeners();
             if (serialLog) {
                 addSerialLog('✅ 動作轉換器已啟動');
-                addSerialLog('📊 比例 2.96｜只傳有郁嘅伺服');
+                addSerialLog('📊 比例 2.96｜獨立 Home Point｜獨立反轉｜自動限幅');
                 addSerialLog('📌 JSON 0 = 你 calibrate 嘅 home point');
-                addSerialLog('⚡ 速度 0.1-1.5x｜預設 0.25x - 一入JSON自動套用');
+                addSerialLog('⚡ 速度 0.1-1.5x｜預設 0.3x - 一入JSON自動套用');
+                addSerialLog('🔄 HV5/6/11/12 預設反轉');
             }
         }
         
@@ -1060,6 +1005,15 @@
             if (renewBtn) {
                 renewBtn.addEventListener('click', function() {
                     if (currentJsonData) {
+                        // 從表格讀取最新設定
+                        document.querySelectorAll('.home-input').forEach(input => {
+                            const servoId = input.dataset.id;
+                            SERVO_CONFIG[servoId].home = parseInt(input.value) || 7500;
+                        });
+                        document.querySelectorAll('.reverse-checkbox').forEach(cb => {
+                            const servoId = cb.dataset.id;
+                            SERVO_CONFIG[servoId].reverse = cb.checked;
+                        });
                         processMotion(currentJsonData);
                         changesMade = false;
                         changedIndicator.style.display = 'none';
@@ -1088,9 +1042,9 @@
             
             if (speedQuarterBtn) {
                 speedQuarterBtn.addEventListener('click', function() {
-                    speedMultiplier.value = 0.25;
-                    speedMultiplierDisplay.textContent = '0.25x';
-                    currentSpeedMultiplier = 0.25;
+                    speedMultiplier.value = 0.3;
+                    speedMultiplierDisplay.textContent = '0.30x';
+                    currentSpeedMultiplier = 0.3;
                     if (currentJsonData) applySpeedMultiplier();
                 });
             }
@@ -1185,21 +1139,11 @@
                     if (e.key === 'Enter') sendCustomCommand();
                 });
             }
-            
-            if (saveLogBtn) {
-                saveLogBtn.addEventListener('click', saveLog);
-            }
-            
-            if (clearLogBtn) {
-                clearLogBtn.addEventListener('click', function() {
-                    if (serialLog) serialLog.innerHTML = '📋 串口日誌...';
-                });
-            }
         }
         
-        // ===== 初始化反轉表格 =====
-        function renderReverseTable() {
-            if (!reverseTableBody) return;
+        // ===== 初始化伺服設定表格 =====
+        function renderServoTable() {
+            if (!servoTableBody) return;
             
             const allServos = [];
             
@@ -1210,8 +1154,10 @@
                     group: 'HV',
                     id: i,
                     name: getServoName('HV', i),
-                    home: ALL_HOME_POINTS[id],
-                    reverse: reverseSettings[id] || false
+                    home: SERVO_CONFIG[id].home,
+                    min: SERVO_CONFIG[id].min,
+                    max: SERVO_CONFIG[id].max,
+                    reverse: SERVO_CONFIG[id].reverse
                 });
             }
             
@@ -1222,8 +1168,10 @@
                     group: 'MV',
                     id: i,
                     name: getServoName('MV', i),
-                    home: ALL_HOME_POINTS[id],
-                    reverse: reverseSettings[id] || false
+                    home: SERVO_CONFIG[id].home,
+                    min: SERVO_CONFIG[id].min,
+                    max: SERVO_CONFIG[id].max,
+                    reverse: SERVO_CONFIG[id].reverse
                 });
             }
             
@@ -1234,28 +1182,24 @@
                         <td>${servo.group}</td>
                         <td>${servo.id}</td>
                         <td>${servo.name}</td>
-                        <td>${servo.home}</td>
                         <td>
-                            <input type="checkbox" class="reverse-checkbox" 
-                                   data-id="${servo.group}${servo.id}"
-                                   ${servo.reverse ? 'checked' : ''}>
+                            <input type="number" class="home-input" data-id="${servo.group}${servo.id}" value="${servo.home}" step="1">
+                        </td>
+                        <td class="range-display">${servo.min}-${servo.max}</td>
+                        <td>
+                            <input type="checkbox" class="reverse-checkbox" data-id="${servo.group}${servo.id}" ${servo.reverse ? 'checked' : ''}>
                         </td>
                     </tr>
                 `;
             });
             
-            reverseTableBody.innerHTML = html;
+            servoTableBody.innerHTML = html;
             
-            document.querySelectorAll('.reverse-checkbox').forEach(cb => {
-                cb.addEventListener('change', function(e) {
-                    const servoId = e.target.dataset.id;
-                    reverseSettings[servoId] = e.target.checked;
+            document.querySelectorAll('.home-input, .reverse-checkbox').forEach(input => {
+                input.addEventListener('change', function(e) {
                     changesMade = true;
                     if (changedIndicator) changedIndicator.style.display = 'inline';
                     if (renewBtn) renewBtn.disabled = false;
-                    
-                    // 更新測試
-                    updateTestCalculations();
                 });
             });
         }
@@ -1276,93 +1220,28 @@
             return names[`${group}${id}`] || '-';
         }
         
-        // ===== 渲染測試格仔 =====
-        function renderTestGrid() {
-            if (!testGrid) return;
-            
-            const testServos = [
-                { id: 'HV1', home: 10200, plen: -621, label: 'HV1 舉高' },
-                { id: 'HV1', home: 10200, plen: -388, label: 'HV1 放低' },
-                { id: 'HV2', home: 4700, plen: 621, label: 'HV2 舉高' },
-                { id: 'HV2', home: 4700, plen: 388, label: 'HV2 放低' },
-                { id: 'MV4', home: 9800, plen: -16, label: 'MV4' },
-                { id: 'MV5', home: 5200, plen: 16, label: 'MV5' },
-                { id: 'MV8', home: 7500, plen: 249, label: 'MV8' },
-                { id: 'MV9', home: 7500, plen: -249, label: 'MV9' },
-                { id: 'HV5', home: 7400, plen: 100, label: 'HV5 測試' },
-                { id: 'HV6', home: 7600, plen: 84, label: 'HV6 測試' }
-            ];
-            
-            let html = '';
-            testServos.forEach(servo => {
-                const value = convertAngle(servo.plen, servo.id);
-                const range = RANGES[servo.id] || {min:3500, max:11500};
-                const outOfRange = value < range.min || value > range.max;
-                const reverseStatus = reverseSettings[servo.id] ? ' (反轉)' : '';
-                
-                html += `
-                    <div class="test-card ${outOfRange ? 'warning' : ''}" id="test-${servo.id}-${servo.plen}">
-                        <div class="label">${servo.label}${reverseStatus}</div>
-                        <div class="value">${value}</div>
-                        <div class="home">Home: ${servo.home}</div>
-                        <div class="range">範圍: ${range.min}-${range.max}</div>
-                    </div>
-                `;
-            });
-            
-            testGrid.innerHTML = html;
-        }
-        
-        // ===== 更新測試計算 =====
-        function updateTestCalculations() {
-            const testServos = [
-                { id: 'HV1', home: 10200, plen: -621, label: 'HV1 舉高', el: 'test-HV1--621' },
-                { id: 'HV1', home: 10200, plen: -388, label: 'HV1 放低', el: 'test-HV1--388' },
-                { id: 'HV2', home: 4700, plen: 621, label: 'HV2 舉高', el: 'test-HV2-621' },
-                { id: 'HV2', home: 4700, plen: 388, label: 'HV2 放低', el: 'test-HV2-388' },
-                { id: 'MV4', home: 9800, plen: -16, label: 'MV4', el: 'test-MV4--16' },
-                { id: 'MV5', home: 5200, plen: 16, label: 'MV5', el: 'test-MV5-16' },
-                { id: 'MV8', home: 7500, plen: 249, label: 'MV8', el: 'test-MV8-249' },
-                { id: 'MV9', home: 7500, plen: -249, label: 'MV9', el: 'test-MV9--249' },
-                { id: 'HV5', home: 7400, plen: 100, label: 'HV5 測試', el: 'test-HV5-100' },
-                { id: 'HV6', home: 7600, plen: 84, label: 'HV6 測試', el: 'test-HV6-84' }
-            ];
-            
-            testServos.forEach(servo => {
-                const value = convertAngle(servo.plen, servo.id);
-                const range = RANGES[servo.id] || {min:3500, max:11500};
-                const outOfRange = value < range.min || value > range.max;
-                
-                const el = document.getElementById(servo.el);
-                if (el) {
-                    const valueDiv = el.querySelector('.value');
-                    if (valueDiv) valueDiv.textContent = value;
-                    
-                    if (outOfRange) {
-                        el.classList.add('warning');
-                    } else {
-                        el.classList.remove('warning');
-                    }
-                    
-                    const labelDiv = el.querySelector('.label');
-                    if (labelDiv) {
-                        const reverseStatus = reverseSettings[servo.id] ? ' (反轉)' : '';
-                        labelDiv.innerHTML = servo.label + reverseStatus;
-                    }
-                }
-            });
-        }
-        
-        // ===== 轉換角度 =====
+        // ===== 轉換角度（基本公式 + 反轉 + 自動限幅） =====
         function convertAngle(plenValue, servoId) {
-            const home = ALL_HOME_POINTS[servoId] || 7500;
-            let value = Math.round(home + (plenValue * FIXED_RATIO));
+            const config = SERVO_CONFIG[servoId];
+            if (!config) return 7500 + Math.round(plenValue * FIXED_RATIO);
             
-            if (reverseSettings[servoId]) {
-                const range = RANGES[servoId];
-                if (range) {
-                    value = range.min + range.max - value;
-                }
+            // 先睇反轉：如果反轉就將 PLEN2 數值乘 -1
+            let finalPlen = plenValue;
+            if (config.reverse) {
+                finalPlen = -plenValue;
+            }
+            
+            // 基本公式：HomePoint + (PLEN2 × 2.96)
+            let value = Math.round(config.home + (finalPlen * FIXED_RATIO));
+            
+            // 自動限幅
+            let originalValue = value;
+            if (value > config.max) {
+                value = config.max;
+                addSerialLog(`⚠️ ${servoId} 由 ${originalValue} 限幅至 ${config.max}`);
+            } else if (value < config.min) {
+                value = config.min;
+                addSerialLog(`⚠️ ${servoId} 由 ${originalValue} 限幅至 ${config.min}`);
             }
             
             return value;
@@ -1403,6 +1282,7 @@
             originalFrames = [];
             activeServosSet.clear();
             servoMoveCount = {};
+            clampLog = [];
             
             if (fileInfo) fileInfo.classList.remove('show');
             if (fileName) fileName.textContent = '-';
@@ -1422,15 +1302,14 @@
             if (batchPreview) batchPreview.innerHTML = '上傳 JSON 後會顯示 Batch 指令';
             if (batchTotalTime) batchTotalTime.textContent = '0';
             if (statsOutput) statsOutput.innerHTML = '';
-            if (lastUpdated) lastUpdated.innerHTML = '';
             
             changesMade = false;
             if (changedIndicator) changedIndicator.style.display = 'none';
             
             if (speedMultiplier) {
-                speedMultiplier.value = 0.25;
-                speedMultiplierDisplay.textContent = '0.25x';
-                currentSpeedMultiplier = 0.25;
+                speedMultiplier.value = 0.3;
+                speedMultiplierDisplay.textContent = '0.30x';
+                currentSpeedMultiplier = 0.3;
             }
             if (fileInput) fileInput.value = '';
         }
@@ -1438,8 +1317,14 @@
         // ===== 生成全體回家指令 =====
         function generateHomeCommand() {
             let cmd = 'S MULTI 64 25';
-            for (let i = 1; i <= 14; i++) cmd += ` HV${i} ${ALL_HOME_POINTS[`HV${i}`]}`;
-            for (let i = 1; i <= 11; i++) cmd += ` MV${i} ${ALL_HOME_POINTS[`MV${i}`]}`;
+            for (let i = 1; i <= 14; i++) {
+                const id = `HV${i}`;
+                cmd += ` HV${i} ${SERVO_CONFIG[id].home}`;
+            }
+            for (let i = 1; i <= 11; i++) {
+                const id = `MV${i}`;
+                cmd += ` MV${i} ${SERVO_CONFIG[id].home}`;
+            }
             return cmd;
         }
         
@@ -1566,7 +1451,6 @@
             if (sendBatchBtn) sendBatchBtn.disabled = false;
             if (copyBatchBtn) copyBatchBtn.disabled = false;
             if (renewBtn) renewBtn.disabled = true;
-            if (lastUpdated) lastUpdated.innerHTML = '✅ 已分析：' + new Date().toLocaleTimeString();
             
             changesMade = false;
             if (changedIndicator) changedIndicator.style.display = 'none';
@@ -1574,7 +1458,7 @@
             addSerialLog(`📂 已載入: ${json.name || '未知'} (${processedFrames.length}個影格)`);
             addSerialLog(`🔍 有 ${activeServosSet.size} 個伺服會郁`);
             
-            // 自動套用當前速度倍率 (0.25x)
+            // 自動套用當前速度倍率 (0.3x)
             applySpeedMultiplier();
         }
         
@@ -1588,8 +1472,8 @@
             }
             
             let html = '';
-            processedFrames.forEach(frame => {
-                html += `<button class="frame-btn" data-index="${frame.index}">${frame.index}<br><small>${frame.servoCount}</small></button>`;
+            processedFrames.forEach((frame, idx) => {
+                html += `<button class="frame-btn" data-index="${idx}">${frame.index}<br><small>${frame.servoCount}</small></button>`;
             });
             frameGrid.innerHTML = html;
             
@@ -1603,13 +1487,13 @@
         }
         
         // ===== 顯示影格詳細 =====
-        function showFrame(index) {
-            const frame = processedFrames[index];
+        function showFrame(processedIndex) {
+            const frame = processedFrames[processedIndex];
             if (!frame) return;
             
             document.querySelectorAll('.frame-btn').forEach(btn => {
                 btn.classList.remove('active');
-                if (parseInt(btn.dataset.index) === index) btn.classList.add('active');
+                if (parseInt(btn.dataset.index) === processedIndex) btn.classList.add('active');
             });
             
             if (frameTitle) frameTitle.textContent = `影格 ${frame.index} (${frame.time}ms) - ${frame.servoCount}個伺服 (speed ${frame.speed})`;
@@ -1717,7 +1601,6 @@
             
             for (let i = 0; i < processedFrames.length; i++) {
                 await sendSerialCommand(processedFrames[i].command);
-                // 唔需要 delay，等 Premaiduino 自己 buffer
             }
             
             addSerialLog('✅ Batch 指令發送完成');
@@ -1845,17 +1728,6 @@
             const time = new Date().toLocaleTimeString();
             serialLog.innerHTML += `<div>[${time}] ${message}</div>`;
             serialLog.scrollTop = serialLog.scrollHeight;
-        }
-        
-        function saveLog() {
-            if (!serialLog) return;
-            const blob = new Blob([serialLog.innerText], { type: 'text/plain' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `serial_log_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.txt`;
-            a.click();
-            URL.revokeObjectURL(a.href);
-            addSerialLog('💾 日誌已儲存');
         }
         
         function mapValue(value, inMin, inMax, outMin, outMax) {
