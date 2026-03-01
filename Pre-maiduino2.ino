@@ -1,11 +1,13 @@
 /*
  * Pre-maiduino2_final.ino
  * 最終版 - 支援 MV/HV 分群指令 + 速度控制 + 多軸同步指令 + 脫力功能
+ * 新增 Batch Mode - 無論多少個 S MULTI 指令，都係收齊先一次過執行
+ * 
  * 指令格式: S MV 1 7500 50, ? HV 2, S MULTI 64 2 HV1 8542 HV2 6358, FREE MV 1, FREE ALL
  * 速度範圍: 0-127 (0=最慢, 127=最快)
  * 
- * 更新日期：2026-02-28
- * 修改：開機立即回家（<1秒），速度固定64，保留呼吸燈效果
+ * 更新日期：2026-03-01
+ * 修改：加入 Batch Mode，收齊所有指令先執行
  * 更新 Home Point: HV5=7400, HV6=7600, HV13=7825, HV14=7450
  */
 
@@ -50,6 +52,10 @@ IcsHardSerialClass icsMV(&Serial3, EN_MV_PIN, 1250000, 50);
 
 // ===== 呼吸燈速度定義 =====
 #define BREATH_SPEED 2
+
+// ===== Batch Mode 設定 =====
+#define BATCH_BUFFER_SIZE 1024  // Batch buffer 大小 (STM32F103 夠用)
+#define BATCH_TIMEOUT 50        // 等待後續指令的時間 (ms)
 
 // ===== MPU6050 相關定義 =====
 #define MPU6050_ADDR 0x68
@@ -115,6 +121,12 @@ bool tuningMode = false;
 int currentServoIndex = 0;
 String inputBuffer = "";
 
+// ===== Batch Mode 變數 =====
+char batchBuffer[BATCH_BUFFER_SIZE];
+int batchIndex = 0;
+bool batchMode = false;
+unsigned long lastCharTime = 0;
+
 // ===== 函式原型 =====
 void initLED();
 void setLEDRed();
@@ -137,6 +149,7 @@ void prevServo();
 bool processASCIICommand(String cmd);
 bool processMultiCommand(String cmd);
 bool processFreeCommand(String cmd);
+void executeBatchCommands();
 
 // ===== 動作 library =====
 void actionStand();
@@ -619,6 +632,41 @@ bool processASCIICommand(String cmd) {
   return false;
 }
 
+// ===== 執行 Batch 指令 =====
+void executeBatchCommands() {
+  if (batchIndex == 0) return;
+  
+  // 確保字串結束
+  batchBuffer[batchIndex] = '\0';
+  
+  // 拆開每一行執行
+  char* line = strtok(batchBuffer, "\n");
+  while (line != NULL) {
+    // 移除行尾嘅 \r
+    char* end = line + strlen(line) - 1;
+    while (end >= line && (*end == '\r' || *end == '\n')) {
+      *end-- = '\0';
+    }
+    
+    if (strlen(line) > 0) {
+      String cmd = String(line);
+      if (!processASCIICommand(cmd)) {
+        processCommand(cmd);
+      }
+    }
+    
+    line = strtok(NULL, "\n");
+  }
+  
+  // 清空 buffer
+  batchIndex = 0;
+  
+  // LED 提示
+  setLEDGreen();
+  delay(50);
+  setLEDBlue();
+}
+
 // ===== setup() - 開機流程 (立即回家) =====
 void setup() {
   // 初始化LED
@@ -637,9 +685,10 @@ void setup() {
   
   // 顯示標題
   Serial1.println(F("\n========================================"));
-  Serial1.println(F("  プリメイドAI 快速開機版"));
+  Serial1.println(F("  プリメイドAI Batch Mode 版"));
   Serial1.println(F("========================================"));
   Serial1.println(F("速度固定64，開機即回家"));
+  Serial1.println(F("支援 Batch Mode：收齊所有指令先執行"));
   Serial1.println(F("支援指令:"));
   Serial1.println(F("  S MV 1 7500 64"));
   Serial1.println(F("  S HV 2 7500"));
@@ -677,20 +726,36 @@ void setup() {
 
 // ===== loop() =====
 void loop() {
-  // 處理串口指令
+  // 處理串口指令 - Batch Mode
   while (Serial1.available()) {
     char c = Serial1.read();
+    lastCharTime = millis();
     
-    if (c == '\n' || c == '\r') {
-      if (inputBuffer.length() > 0) {
-        if (!processASCIICommand(inputBuffer)) {
-          processCommand(inputBuffer);
-        }
-        inputBuffer = "";
+    if (!batchMode) {
+      // 第一個字元，開始 batch mode
+      batchMode = true;
+      batchIndex = 0;
+      if (batchIndex < BATCH_BUFFER_SIZE - 1) {
+        batchBuffer[batchIndex++] = c;
       }
     } else {
-      inputBuffer += c;
+      // 繼續儲存
+      if (batchIndex < BATCH_BUFFER_SIZE - 1) {
+        batchBuffer[batchIndex++] = c;
+      }
     }
+    
+    // 簡單嘅 input buffer 處理（用於單行指令）
+    inputBuffer += c;
+    if (c == '\n') {
+      inputBuffer = "";
+    }
+  }
+  
+  // 檢查 batch 係咪收齊
+  if (batchMode && (millis() - lastCharTime > BATCH_TIMEOUT)) {
+    executeBatchCommands();
+    batchMode = false;
   }
   
   // 定期呼吸效果 (每10秒)
